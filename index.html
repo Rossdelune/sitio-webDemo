@@ -1322,9 +1322,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG JSONBin (DEMO) ══
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const BIN_ID     = "REEMPLAZAR_BIN_ID";
+const MASTER_KEY = "REEMPLAZAR_MASTER_KEY";
+const ACCESS_KEY = "REEMPLAZAR_ACCESS_KEY";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -2060,7 +2060,7 @@ function renderClientes(){
     }
     return `<tr>
       <td style="font-size:.74rem;white-space:nowrap">${fContrato}</td>
-      <td style="font-size:.74rem;color:#888">${c.folio||"—"}</td>
+      <td style="font-size:.74rem;color:#888">${c.esNotaSencilla?"Sin folio":(c.folio||"—")}</td>
       <td style="white-space:nowrap"><strong style="font-weight:500;font-size:.82rem">${c.nombre}</strong></td>
       <td style="font-size:.76rem;white-space:nowrap">${c.cel||"—"}</td>
       <td style="font-size:.76rem;white-space:nowrap">${c.tel||"—"}</td>
@@ -2069,7 +2069,7 @@ function renderClientes(){
       <td style="font-size:.76rem;white-space:nowrap">$${total.toLocaleString()}</td>
       <td style="font-size:.74rem">${c.sispago==="En parcialidades"?"Parcialidades":"Liquidado"}</td>
       <td style="font-size:.74rem;text-align:center">${c.sispago==="En parcialidades"?(c.parcialidades||30)+" días":"—"}</td>
-      <td style="font-size:.76rem;white-space:nowrap">${tipos[c.tipo]||c.tipo||"—"}</td>
+      <td style="font-size:.76rem;white-space:nowrap">${c.esNotaSencilla?"Venta directa":(tipos[c.tipo]||c.tipo||"—")}</td>
       <td style="font-size:.74rem">${c.elaboracion||"—"}</td>
       <td style="font-size:.76rem">${c.modelo||"—"}</td>
       <td style="white-space:nowrap"><span class="color-dot" style="background:${c.color?.hex||"#CCC"}"></span><span style="font-size:.74rem">${c.color?.nombre||"—"}</span></td>
@@ -2083,11 +2083,15 @@ function renderClientes(){
       <td style="font-size:.72rem;max-width:160px">${adicionales}</td>
       <td style="font-size:.74rem">${c.elaboracion==="Sobre pedido"?"✓":"—"}</td>
       <td style="white-space:nowrap">
-        <button class="ic-btn" onclick="verPagos('${c.id}')" title="Pagos">💳</button>
+        ${c.esNotaSencilla?
+          `${currentUser.role==="admin"?`<button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar venta directa" style="color:var(--rojo)">🗑️</button>`:""}`
+          :
+          `<button class="ic-btn" onclick="verPagos('${c.id}')" title="Pagos">💳</button>
         <button class="ic-btn" onclick="verContrato('${c.id}')" title="Contrato">📄</button>
         <button class="ic-btn" onclick="verNotaVenta('${c.id}')" title="Nota de venta">🧾</button>
         <button class="ic-btn" onclick="verFormatoEntrega('${c.id}')" title="Formato de entrega">📦</button>
-        ${currentUser.role==="admin"?`<button class="ic-btn" onclick="abrirEditarCliente('${c.id}')" title="Editar cliente">✏️</button><button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar cliente" style="color:var(--rojo)">🗑️</button>`:""}
+        ${currentUser.role==="admin"?`<button class="ic-btn" onclick="abrirEditarCliente('${c.id}')" title="Editar cliente">✏️</button><button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar cliente" style="color:var(--rojo)">🗑️</button>`:""}`
+        }
       </td>
     </tr>`;
   }).join("");
@@ -2258,7 +2262,7 @@ function renderPagosPendientes(){
   }
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   let sumaTotal=0, sumaPagado=0, sumaSaldo=0;
-  const rows = allClientes.filter(c=>c.estatus!=="Entregado").map(c=>{
+  const rows = allClientes.filter(c=>c.estatus!=="Entregado" && !c.esNotaSencilla).map(c=>{
     const precio = Number(c.precio||0);
     const paquete = Number(c.precioPaquete||0);
     const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
@@ -2719,6 +2723,21 @@ async function generarEImprimirNotaSencilla(folio){
     const data = await loadData();
     if(!data.notasSencillas) data.notasSencillas=[];
     data.notasSencillas.push({folio:folioReal,fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
+    // Registrar también en Lista de clientes como venta directa, SIN folio (a petición de la clienta)
+    if(!data.clientes) data.clientes=[];
+    data.clientes.push({
+      id:"NS"+Date.now(),
+      esNotaSencilla:true,
+      folio:null,
+      fecha:new Date().toISOString().slice(0,10),
+      nombre,
+      tel,
+      estatus:"Venta directa",
+      precio:subtotal,
+      anticipo:subtotal,
+      sispago:"Liquidado",
+      items:notaSencillaItems
+    });
     await saveData(data);
   }catch(e){console.error("Error guardando folio",e);}
 
@@ -2741,7 +2760,7 @@ const PASOS_PEDIDO = [
 function renderProceso(){
   const lista = document.getElementById("proceso-lista");
   if(!lista) return;
-  const activos = allClientes.filter(c => c.estatus !== "Entregado");
+  const activos = allClientes.filter(c => c.estatus !== "Entregado" && !c.esNotaSencilla);
   if(!activos.length){
     lista.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin pedidos activos.</p>';
     return;
@@ -2754,7 +2773,7 @@ function filtrarProceso(q){
   if(!lista) return;
   const txt = q.toLowerCase();
   const filtrados = allClientes.filter(c =>
-    c.estatus !== "Entregado" &&
+    c.estatus !== "Entregado" && !c.esNotaSencilla &&
     (c.nombre.toLowerCase().includes(txt) || (c.folio||"").includes(txt))
   );
   if(!filtrados.length){
@@ -4146,9 +4165,10 @@ function renderEntregasFecha(){
   } else {
     const desde=document.getElementById("ent-desde").value;
     const hasta=document.getElementById("ent-hasta").value;
-    if(!desde&&!hasta){filtrados=allClientes.slice();}
+    if(!desde&&!hasta){filtrados=allClientes.filter(c=>!c.esNotaSencilla);}
     else {
       filtrados=allClientes.filter(c=>{
+        if(c.esNotaSencilla)return false;
         if(!c.entrega)return false;
         if(desde&&c.entrega<desde)return false;
         if(hasta&&c.entrega>hasta)return false;
@@ -4194,7 +4214,7 @@ function renderPedidos(){
   const tbody=document.getElementById("pedidos-tbody");
   if(!tbody)return;
   // Filtra solo los pendientes — "Pedido Realizado" o sin estatus
-  const pendientes=allClientes.filter(c=>!c.estatus||c.estatus==="Pedido Realizado"||c.estatus==="Pedido realizado"||c.estatus==="En Compra");
+  const pendientes=allClientes.filter(c=>!c.esNotaSencilla && (!c.estatus||c.estatus==="Pedido Realizado"||c.estatus==="Pedido realizado"||c.estatus==="En Compra"));
   if(!pendientes.length){
     tbody.innerHTML='<tr><td colspan="11" style="color:#AAA;padding:1.5rem;text-align:center;">Sin pedidos pendientes 🎀</td></tr>';return;
   }
