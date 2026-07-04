@@ -453,7 +453,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     page-break-inside:avoid!important;
     break-inside:avoid!important;
   }
-  .lote-celda canvas,.lote-celda img{width:100%!important;height:auto!important;display:block!important;}
+  .lote-celda canvas{display:none!important;}
+  .lote-celda img{width:100%!important;height:auto!important;display:block!important;}
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
@@ -610,7 +611,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <input type="text" id="inv-scan-input" placeholder="Apunta el escáner aquí y escanea el QR..." style="flex:1" onkeydown="if(event.key==='Enter'){buscarPorQR();event.preventDefault();}">
             <button class="paso-btn" onclick="buscarPorQR()" style="white-space:nowrap">Buscar</button>
           </div>
-          <div id="inv-scan-msg" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem"></div>
+          <div id="inv-scan-msg" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
         </div>
         <!-- Color picker -->
         <div class="fi">
@@ -1321,9 +1322,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG JSONBin (DEMO) ══
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const BIN_ID     = "REEMPLAZAR_BIN_ID";
+const MASTER_KEY = "REEMPLAZAR_MASTER_KEY";
+const ACCESS_KEY = "REEMPLAZAR_ACCESS_KEY";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -1570,6 +1571,12 @@ function limpiarFormularioCliente(){
   if(fiParc) fiParc.style.display="none";
   // Resumen de costos a cero
   calcTotal();
+  // Escaneo QR: limpiar mensaje del artículo del cliente anterior
+  const scanMsg=document.getElementById("inv-scan-msg");
+  if(scanMsg){ scanMsg.style.color=""; scanMsg.innerHTML=""; }
+  const scanInput=document.getElementById("inv-scan-input");
+  if(scanInput) scanInput.value="";
+  window._qrArticuloActual=null;
   // Mensaje de error limpio
   const msg=document.getElementById("cliente-msg");
   if(msg) msg.textContent="";
@@ -3666,9 +3673,25 @@ function buscarPorQR(){
   // Actualizar el color visualmente si existe la función
   if(typeof onColorChange==="function") onColorChange(art.colorHex||"#C8A8D0");
   if(typeof onColorNameInput==="function") onColorNameInput(art.colorNombre||"");
+  window._qrArticuloActual = art.id;
   msg.style.color="var(--dorado-d)";
-  msg.textContent="✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre;
+  msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
+    ' <button type="button" onclick="quitarArticuloEscaneado()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
   input.value="";
+}
+
+function quitarArticuloEscaneado(){
+  document.getElementById("c-modelo").value="";
+  document.getElementById("c-talla").value="";
+  document.getElementById("c-color-name").value="";
+  selectedColor="#C8A8D0";
+  const colorBox=document.getElementById("color-preview-box");
+  if(colorBox) colorBox.style.background=selectedColor;
+  const colorPicker=document.getElementById("color-picker");
+  if(colorPicker) colorPicker.value=selectedColor;
+  window._qrArticuloActual=null;
+  const msg=document.getElementById("inv-scan-msg");
+  if(msg){ msg.style.color=""; msg.innerHTML=""; }
 }
 
 
