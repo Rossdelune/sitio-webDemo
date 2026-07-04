@@ -1322,9 +1322,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG JSONBin (DEMO) ══
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const BIN_ID     = "REEMPLAZAR_BIN_ID";
+const MASTER_KEY = "REEMPLAZAR_MASTER_KEY";
+const ACCESS_KEY = "REEMPLAZAR_ACCESS_KEY";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -1844,8 +1844,96 @@ function abrirEditarCliente(id){
   document.getElementById("edit-estatus").value      = c.estatus||"Pedido Realizado";
   document.getElementById("edit-obs").value          = c.observaciones||"";
 
+  initEditAdicionales(c.paquete?.adicionales||[]);
   editToggleParcialidades();
+  calcEditTotal();
   document.getElementById("modal-editar-cliente").classList.add("open");
+}
+
+// ══ ADICIONALES EN EDICIÓN ══
+let _editLibreSeq = 0;
+
+function initEditAdicionales(existing){
+  const grid = document.getElementById("edit-add-grid");
+  grid.innerHTML = ADICIONALES.map((a,i)=>{
+    const match = existing.find(e=>e.nombre===a);
+    return `
+    <div class="add-item" id="edit-ai-${i}">
+      <div class="add-header">
+        <input type="checkbox" class="add-check" id="edit-ac-${i}" ${match?"checked":""} onchange="toggleEditAdicional(${i})">
+        <label class="add-label" for="edit-ac-${i}">${a}</label>
+        <input type="number" class="add-price" id="edit-ap-${i}" placeholder="$0" min="0" value="${match?match.precio:""}" oninput="calcEditTotal()">
+      </div>
+      <input class="add-note" id="edit-an-${i}" placeholder="Especificaciones..." value="${match&&match.nota?match.nota:""}">
+    </div>`;
+  }).join("");
+  ADICIONALES.forEach((a,i)=>{
+    const chk = document.getElementById("edit-ac-"+i);
+    document.getElementById("edit-ai-"+i).classList.toggle("sel", chk.checked);
+  });
+
+  const libreGrid = document.getElementById("edit-libre-grid");
+  libreGrid.innerHTML = "";
+  const libres = existing.filter(e=>!ADICIONALES.includes(e.nombre));
+  libres.forEach(l=>agregarProductoLibre(l.nombre, l.precio, l.nota));
+}
+
+function toggleEditAdicional(i){
+  const chk = document.getElementById("edit-ac-"+i);
+  document.getElementById("edit-ai-"+i).classList.toggle("sel", chk.checked);
+  calcEditTotal();
+}
+
+function agregarProductoLibre(nombre="", precio="", nota=""){
+  const id = "el-"+(_editLibreSeq++);
+  const grid = document.getElementById("edit-libre-grid");
+  const row = document.createElement("div");
+  row.className = "add-item edit-libre-row";
+  row.id = id;
+  row.innerHTML = `
+    <div class="add-header">
+      <input type="text" class="edit-libre-nombre" placeholder="Nombre del producto" value="${nombre}" style="flex:1;border:none;border-bottom:1px solid #E8DDD0;padding:.3rem 0;font-size:.82rem;outline:none;background:transparent" oninput="calcEditTotal()">
+      <input type="number" class="add-price edit-libre-precio" placeholder="$0" min="0" value="${precio}" oninput="calcEditTotal()">
+      <button type="button" onclick="eliminarProductoLibre('${id}')" style="border:none;background:none;color:var(--rojo);font-size:1rem;cursor:pointer;padding:0 .3rem">✕</button>
+    </div>
+    <input type="text" class="add-note edit-libre-nota" placeholder="Especificaciones..." value="${nota}">`;
+  grid.appendChild(row);
+  calcEditTotal();
+}
+
+function eliminarProductoLibre(id){
+  const row = document.getElementById(id);
+  if(row) row.remove();
+  calcEditTotal();
+}
+
+function getEditAdicionales(){
+  const catalogo = ADICIONALES.map((a,i)=>{
+    const chk = document.getElementById("edit-ac-"+i);
+    if(!chk||!chk.checked) return null;
+    return {nombre:a, precio:document.getElementById("edit-ap-"+i).value||0, nota:document.getElementById("edit-an-"+i).value};
+  }).filter(Boolean);
+  const libres = Array.from(document.querySelectorAll("#edit-libre-grid .edit-libre-row")).map(row=>{
+    const nombre = row.querySelector(".edit-libre-nombre").value.trim();
+    if(!nombre) return null;
+    return {nombre, precio:row.querySelector(".edit-libre-precio").value||0, nota:row.querySelector(".edit-libre-nota").value};
+  }).filter(Boolean);
+  return [...catalogo, ...libres];
+}
+
+function calcEditTotal(){
+  const vestido  = parseFloat(document.getElementById("edit-precio").value)||0;
+  const paquete  = parseFloat(document.getElementById("edit-precio-paquete").value)||0;
+  const anticipo = parseFloat(document.getElementById("edit-anticipo").value)||0;
+  const extras   = getEditAdicionales().reduce((s,a)=>s+Number(a.precio||0),0);
+  const total    = vestido + paquete + extras;
+  const saldo    = total - anticipo;
+  const elExtras = document.getElementById("edit-resumen-extras");
+  const elTotal  = document.getElementById("edit-resumen-total");
+  const elSaldo  = document.getElementById("edit-resumen-saldo");
+  if(elExtras) elExtras.textContent = "$"+extras.toLocaleString();
+  if(elTotal)  elTotal.textContent  = "$"+total.toLocaleString();
+  if(elSaldo)  elSaldo.textContent  = "$"+saldo.toLocaleString();
 }
 
 function cerrarEditarCliente(){
@@ -1907,6 +1995,7 @@ async function guardarEdicionCliente(){
       modelo:      document.getElementById("edit-modelo").value.trim(),
       talla:       document.getElementById("edit-talla").value.trim(),
       color:       {hex, nombre: document.getElementById("edit-color-nombre").value.trim()||hex},
+      paquete:     {...(original.paquete||{tipo:"solo",componentes:[]}), adicionales:getEditAdicionales()},
       medidas:     {
         busto:   document.getElementById("edit-busto").value,
         cintura: document.getElementById("edit-cintura").value,
@@ -4319,10 +4408,24 @@ function generarContrato(c){
     </div>
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Financiero</div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
-      <div class="field"><label>Precio vestido ($)</label><input type="number" id="edit-precio" placeholder="0"></div>
-      <div class="field"><label>Precio paquete ($)</label><input type="number" id="edit-precio-paquete" placeholder="0"></div>
-      <div class="field"><label>Anticipo ($)</label><input type="number" id="edit-anticipo" placeholder="0"></div>
+      <div class="field"><label>Precio vestido ($)</label><input type="number" id="edit-precio" placeholder="0" oninput="calcEditTotal()"></div>
+      <div class="field"><label>Precio paquete ($)</label><input type="number" id="edit-precio-paquete" placeholder="0" oninput="calcEditTotal()"></div>
+      <div class="field">
+        <label>Anticipo ($)</label>
+        <input type="number" id="edit-anticipo" placeholder="0" oninput="calcEditTotal()">
+        <div style="font-size:.65rem;color:var(--rojo);margin-top:.2rem">⚠️ Si es un pago nuevo, regístralo como abono — no aquí.</div>
+      </div>
       <div class="field"><label>Forma de pago</label><input type="text" id="edit-fpago" placeholder="Efectivo, transferencia..."></div>
+    </div>
+
+    <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Productos / artículos adicionales</div>
+    <div id="edit-add-grid"></div>
+    <div id="edit-libre-grid" style="margin-top:.4rem"></div>
+    <button type="button" class="btn-sec" style="width:100%;margin-top:.5rem" onclick="agregarProductoLibre()">➕ Agregar producto</button>
+    <div style="background:#FDF8F0;border:1px solid var(--dorado);border-radius:3px;padding:.6rem .8rem;margin-top:.7rem;font-size:.78rem">
+      <div style="display:flex;justify-content:space-between;margin-bottom:.2rem"><span>Adicionales:</span><strong id="edit-resumen-extras">$0</strong></div>
+      <div style="display:flex;justify-content:space-between;margin-bottom:.2rem"><span>Total pedido:</span><strong id="edit-resumen-total">$0</strong></div>
+      <div style="display:flex;justify-content:space-between"><span>Saldo pendiente:</span><strong id="edit-resumen-saldo">$0</strong></div>
     </div>
     <div class="field"><label>Sistema de pago</label>
       <select id="edit-sispago" onchange="editToggleParcialidades()">
