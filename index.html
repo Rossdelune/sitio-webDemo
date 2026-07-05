@@ -2810,6 +2810,7 @@ async function generarEImprimirNotaSencilla(folio){
     });
     await saveData(data);
     allClientes = data.clientes||[];
+    renderClientes();
   }catch(e){console.error("Error guardando folio",e);}
 
   // Ocultar formulario y mostrar solo impresión
