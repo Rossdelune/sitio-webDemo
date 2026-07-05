@@ -2551,7 +2551,7 @@ let notaSencillaItems = [];
 async function abrirNotaSencilla(){
   closeAllNav();
   notaSencillaItems = [{desc:"",qty:1,precio:0}];
-  const folio = await getNextFolio(); // Solo previsualizar, no incrementar aún
+  const folio = "ns"+Date.now(); // Solo identificador interno para los callbacks del formulario, ya no es un folio real
   renderNotaSencilla(folio);
   document.getElementById("modal-nota-sencilla").classList.add("open");
 }
@@ -2743,10 +2743,10 @@ async function generarEImprimirNotaSencilla(folio){
       </div>
     </div>
 
-    <!-- TÍTULO Y FOLIO -->
+    <!-- TÍTULO -->
     <div style="display:flex;justify-content:space-between;margin-bottom:.5rem">
       <div style="font-size:1.1rem;font-weight:700">NOTA DE VENTA</div>
-      <div style="font-size:.85rem">Folio: <strong>${folio}</strong> &nbsp;·&nbsp; Fecha: ${hoy}</div>
+      <div style="font-size:.85rem">Fecha: ${hoy}</div>
     </div>
 
     <!-- DATOS CLIENTE -->
@@ -2788,12 +2788,11 @@ async function generarEImprimirNotaSencilla(folio){
     </div>
   </div>`;
 
-  // Guardar folio en JSONBin — incrementar aquí, al confirmar
+  // Guardar en JSONBin — sin folio, a petición de la clienta
   try{
-    const folioReal = await incrementFolio(); // Incrementa y guarda
     const data = await loadData();
     if(!data.notasSencillas) data.notasSencillas=[];
-    data.notasSencillas.push({folio:folioReal,fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
+    data.notasSencillas.push({fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
     // Registrar también en Lista de clientes como venta directa, SIN folio (a petición de la clienta)
     if(!data.clientes) data.clientes=[];
     data.clientes.push({
