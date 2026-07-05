@@ -235,6 +235,14 @@ input[type="color"]{opacity:0;position:absolute;width:0;height:0;}
 .btn-sec{padding:.72rem 1.4rem;background:transparent;color:var(--dorado-d);border:1px solid var(--dorado);border-radius:2px;font-family:"Lato",sans-serif;font-size:.72rem;letter-spacing:.18em;text-transform:uppercase;cursor:pointer;margin-left:.6rem;}
 .actions-row{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem;margin-top:1rem;}
 
+/* buscador clientes */
+.buscador-box{position:relative;padding:0 .6rem .7rem;}
+.buscador-box input{width:100%;border:1px solid #E0D5C0;border-radius:6px;padding:.6rem .8rem .6rem 2.1rem;font-family:"Lato",sans-serif;font-size:.85rem;color:var(--texto);background:#FDFBF7;outline:none;transition:border-color .2s;box-sizing:border-box;}
+.buscador-box input:focus{border-color:var(--dorado);}
+.buscador-box .buscador-ic{position:absolute;left:1.15rem;top:50%;transform:translateY(-50%);font-size:.85rem;color:#AAA;pointer-events:none;}
+.buscador-box .buscador-clear{position:absolute;right:1.15rem;top:50%;transform:translateY(-50%);font-size:.8rem;color:#AAA;cursor:pointer;display:none;}
+.buscador-count{font-size:.7rem;color:#AAA;padding:0 .7rem .5rem;}
+
 /* tabla clientes */
 .tbl{width:100%;border-collapse:collapse;font-size:.8rem;}
 .tbl th{text-align:left;padding:.55rem .7rem;font-size:.63rem;letter-spacing:.13em;text-transform:uppercase;color:#AAA;font-weight:400;border-bottom:1px solid #EEE;}
@@ -758,6 +766,12 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="card-title" style="margin:0">Expedientes</div>
           <button class="btn-new" onclick="goSec('nuevo-cliente')">+ Nuevo</button>
         </div>
+        <div class="buscador-box">
+          <span class="buscador-ic">🔍</span>
+          <input type="text" id="buscar-cliente" placeholder="Buscar por folio o nombre..." oninput="filtrarClientes()">
+          <span class="buscador-clear" id="buscar-cliente-clear" onclick="limpiarBuscarCliente()">✕</span>
+        </div>
+        <div class="buscador-count" id="buscar-cliente-count"></div>
         <div style="overflow-x:auto;">
           <table class="tbl">
             <thead><tr>
@@ -1324,7 +1338,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -2030,14 +2044,18 @@ async function guardarEdicionCliente(){
 }
 
 // ══ RENDER CLIENTES ══
-function renderClientes(){
+function renderClientes(lista){
   const tbody=document.getElementById("clientes-tbody");
+  const data=lista||allClientes;
   if(!allClientes.length){
     tbody.innerHTML='<tr><td colspan="24" style="color:#AAA;padding:1.5rem;text-align:center;">Sin clientes registrados aún.</td></tr>';return;
   }
+  if(!data.length){
+    tbody.innerHTML='<tr><td colspan="24" style="color:#AAA;padding:1.5rem;text-align:center;">No se encontraron clientes con esa búsqueda.</td></tr>';return;
+  }
   const tipos={"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado","":" — "};
   const pkgNombre={"xv":"Paquete XV","novia":"Paquete Novia","solo":"Solo vestido","custom":"Personalizado","":" — "};
-  tbody.innerHTML=allClientes.map(c=>{
+  tbody.innerHTML=data.map(c=>{
     // Calcular costo total
     const precio=Number(c.precio||0);
     const paquete=Number(c.precioPaquete||0);
@@ -2096,6 +2114,31 @@ function renderClientes(){
       </td>
     </tr>`;
   }).join("");
+  const cEl=document.getElementById("buscar-cliente-count");
+  if(cEl){
+    const q=(document.getElementById("buscar-cliente")?.value||"").trim();
+    cEl.textContent=q?`${data.length} de ${allClientes.length} clientes`:"";
+  }
+}
+function normTexto(s){
+  return (s||"").toString().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g,"");
+}
+function filtrarClientes(){
+  const inp=document.getElementById("buscar-cliente");
+  const q=normTexto(inp.value.trim());
+  document.getElementById("buscar-cliente-clear").style.display=q?"block":"none";
+  if(!q){renderClientes();return;}
+  const filtrados=allClientes.filter(c=>
+    normTexto(c.nombre).includes(q) || normTexto(c.folio).includes(q)
+  );
+  renderClientes(filtrados);
+}
+function limpiarBuscarCliente(){
+  const inp=document.getElementById("buscar-cliente");
+  inp.value="";
+  document.getElementById("buscar-cliente-clear").style.display="none";
+  renderClientes();
+  inp.focus();
 }
 function verCliente(id){toast("Expediente completo · próxima fase 🎀","ok");}
 
