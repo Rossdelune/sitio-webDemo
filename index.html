@@ -1092,8 +1092,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="fi"><label>Talla</label><input type="text" id="inv-talla" placeholder="XS, S, M, L..."></div>
           <div class="fi">
             <label>Color</label>
-            <div style="display:flex;align-items:center;gap:.5rem">
-              <input type="color" id="inv-color-picker" value="#C8A8D0" onchange="document.getElementById('inv-color-nombre').value=this.value">
+            <div class="color-row">
+              <div class="color-preview" id="inv-color-preview-box" onclick="document.getElementById('inv-color-picker').click()" title="Seleccionar color"></div>
+              <input type="color" id="inv-color-picker" value="#C8A8D0" onchange="onInvColorChange(this.value)">
               <input type="text" id="inv-color-nombre" placeholder="Nombre del color" style="flex:1">
             </div>
           </div>
@@ -1623,6 +1624,10 @@ function onColorChange(val){
   document.getElementById("color-preview-box").style.background=val;
 }
 function onColorNameInput(val){}
+function onInvColorChange(val){
+  const box=document.getElementById("inv-color-preview-box");
+  if(box) box.style.background=val;
+}
 
 // ══ PAQUETES ══
 const PKG_XV=[
@@ -3913,6 +3918,8 @@ function limpiarFormInv(){
     if(el) el.value = id==="inv-cantidad"?"1":"";
   });
   document.getElementById("inv-color-picker").value="#C8A8D0";
+  const invColorBox=document.getElementById("inv-color-preview-box");
+  if(invColorBox) invColorBox.style.background="#C8A8D0";
   const prev=document.getElementById("inv-foto-preview");
   prev.src="";prev.style.display="none";
   document.getElementById("inv-foto-input").value="";
@@ -3933,6 +3940,8 @@ function editarArticulo(artId){
   document.getElementById("inv-modelo").value = a.modelo||"";
   document.getElementById("inv-talla").value = a.talla||"";
   document.getElementById("inv-color-picker").value = a.colorHex||"#C8A8D0";
+  const invColorBox=document.getElementById("inv-color-preview-box");
+  if(invColorBox) invColorBox.style.background = a.colorHex||"#C8A8D0";
   document.getElementById("inv-color-nombre").value = a.colorNombre||"";
   document.getElementById("inv-precio").value = a.precio||"";
   document.getElementById("inv-cantidad").value = a.cantidad||1;
