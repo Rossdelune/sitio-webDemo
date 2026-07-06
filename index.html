@@ -1800,6 +1800,7 @@ async function saveCliente(){
     observaciones:document.getElementById("c-obs").value.trim(),
     estatus:document.getElementById("c-estatus").value,
     imagen:document.getElementById("c-imagen").value,
+    articuloId:window._qrArticuloActual||null,
     pagos:[],
     progreso:{},
     creadoPor:currentUser.user,
@@ -1854,6 +1855,25 @@ function abrirEditarCliente(id){
   const hex = c.color?.hex||"#C8A8D0";
   document.getElementById("edit-color-picker").value  = hex;
   document.getElementById("edit-color-preview").style.background = hex;
+  // Vínculo con inventario (solo para descuento automático, no toca precio)
+  window._editArticuloVinculado = c.articuloId || null;
+  const scanMsg = document.getElementById("edit-inv-scan-msg");
+  const scanInput = document.getElementById("edit-inv-scan-input");
+  if(scanInput) scanInput.value="";
+  if(scanMsg){
+    const art = c.articuloId ? (window._invData||[]).find(a=>a.id===c.articuloId) : null;
+    if(art){
+      scanMsg.style.color="var(--dorado-d)";
+      scanMsg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
+        ' <button type="button" onclick="quitarArticuloVinculadoEdicion()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+    } else if(c.articuloId){
+      scanMsg.style.color="var(--rojo)";
+      scanMsg.textContent="✕ Artículo vinculado ya no existe en inventario.";
+    } else {
+      scanMsg.style.color="";
+      scanMsg.textContent="";
+    }
+  }
   document.getElementById("edit-busto").value        = c.medidas?.busto||"";
   document.getElementById("edit-cintura").value      = c.medidas?.cintura||"";
   document.getElementById("edit-cadera").value       = c.medidas?.cadera||"";
@@ -1962,6 +1982,33 @@ function calcEditTotal(){
   if(elSaldo)  elSaldo.textContent  = "$"+saldo.toLocaleString("es-MX");
 }
 
+function buscarPorQREdicion(){
+  const input = document.getElementById("edit-inv-scan-input");
+  const msg = document.getElementById("edit-inv-scan-msg");
+  const id = (input.value||"").trim();
+  msg.textContent="";
+  if(!id) return;
+  const inv = window._invData||[];
+  const art = inv.find(x=>x.id===id);
+  if(!art){
+    msg.style.color="var(--rojo)";
+    msg.textContent="✕ Artículo no encontrado en inventario.";
+    return;
+  }
+  // Solo se guarda el vínculo — NO se toca modelo/talla/color/precio del cliente
+  window._editArticuloVinculado = art.id;
+  msg.style.color="var(--dorado-d)";
+  msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
+    ' <button type="button" onclick="quitarArticuloVinculadoEdicion()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+  input.value="";
+}
+
+function quitarArticuloVinculadoEdicion(){
+  window._editArticuloVinculado = null;
+  const msg=document.getElementById("edit-inv-scan-msg");
+  if(msg){ msg.style.color=""; msg.innerHTML=""; }
+}
+
 function cerrarEditarCliente(){
   document.getElementById("modal-editar-cliente").classList.remove("open");
   _editClienteId = null;
@@ -2021,6 +2068,7 @@ async function guardarEdicionCliente(){
       modelo:      document.getElementById("edit-modelo").value.trim(),
       talla:       document.getElementById("edit-talla").value.trim(),
       color:       {hex, nombre: document.getElementById("edit-color-nombre").value.trim()||hex},
+      articuloId:  window._editArticuloVinculado||null,
       paquete:     {...(original.paquete||{tipo:"solo",componentes:[]}), adicionales:getEditAdicionales()},
       medidas:     {
         busto:   document.getElementById("edit-busto").value,
@@ -2967,9 +3015,42 @@ async function togglePasoPedido(clienteId, pasoId){
     const data = await loadData();
     allClientes = data.clientes||[];
     const idx = allClientes.findIndex(x=>x.id===clienteId);
+    let avisoInventario = "";
     if(idx>-1){
       allClientes[idx].progreso = c.progreso;
       if(pasoId==="entregado" && c.progreso.pedido[pasoId]) allClientes[idx].estatus="Entregado";
+
+      // Descontar/revertir del inventario al marcar/desmarcar Entrega
+      if(pasoId==="entregado"){
+        const cli = allClientes[idx];
+        const inv = data.inventario||[];
+        const yaDescontado = !!cli.progreso.pedido.entregado_descontado;
+        if(cli.progreso.pedido.entregado && !yaDescontado){
+          if(cli.articuloId){
+            const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
+            if(artIdx>-1){
+              inv[artIdx].cantidad = Math.max(0, (Number(inv[artIdx].cantidad)||0) - 1);
+              cli.progreso.pedido.entregado_descontado = true;
+              window._invData = inv;
+            } else {
+              avisoInventario = " (artículo no encontrado en inventario, no se descontó)";
+            }
+          } else {
+            avisoInventario = " (sin artículo vinculado, no se descontó del inventario)";
+          }
+        } else if(!cli.progreso.pedido.entregado && yaDescontado && cli.articuloId){
+          const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
+          if(artIdx>-1){
+            inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1;
+            window._invData = inv;
+          }
+          cli.progreso.pedido.entregado_descontado = false;
+        }
+        await saveData({...data, users:allUsers, clientes:allClientes, inventario:inv});
+        renderProceso();
+        toast(cli.progreso.pedido.entregado ? "Entrega marcada ✓"+avisoInventario : "Entrega desmarcada", avisoInventario?"err":"ok");
+        return;
+      }
     }
     await saveData({...data, users:allUsers, clientes:allClientes});
     renderProceso();
@@ -4584,6 +4665,15 @@ function generarContrato(c){
         <input type="color" id="edit-color-picker" style="opacity:0;width:0;height:0;position:absolute" onchange="editColorChange(this.value)">
         <span style="font-size:.74rem;color:#AAA">Toca el recuadro para cambiar</span>
       </div>
+    </div>
+    <div class="field">
+      <label>📷 Vincular artículo del inventario (solo para descuento automático al entregar)</label>
+      <div style="display:flex;gap:.5rem">
+        <input type="text" id="edit-inv-scan-input" placeholder="Apunta el escáner aquí y escanea el QR..." style="flex:1"
+          onkeydown="if(event.key==='Enter'){buscarPorQREdicion();event.preventDefault();}">
+        <button type="button" class="btn-sec" onclick="buscarPorQREdicion()">BUSCAR</button>
+      </div>
+      <div id="edit-inv-scan-msg" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
     </div>
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Medidas</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem">
