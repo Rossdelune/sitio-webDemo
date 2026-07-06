@@ -1073,7 +1073,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
     <!-- ── NUEVO ARTÍCULO ── -->
     <div class="section" id="sec-inv-nuevo">
-      <div class="sec-title">Nuevo artículo</div>
+      <div class="sec-title" id="inv-nuevo-title">Nuevo artículo</div>
       <div class="card">
         <div class="fg2">
           <div class="fi">
@@ -1113,7 +1113,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
 
         <div class="actions-row" style="margin-top:1rem">
-          <button class="btn-save" onclick="guardarArticuloInv()">💾 Guardar artículo</button>
+          <button class="btn-save" id="btn-guardar-articulo" onclick="guardarArticuloInv()">💾 Guardar artículo</button>
           <button class="btn-sec" onclick="goSec('inv-qr')">Cancelar</button>
         </div>
         <div class="msg-err" id="inv-msg" style="margin-top:.5rem;min-height:1rem"></div>
@@ -3636,6 +3636,7 @@ function buildInvCard(a){
           ${a.notas?`<div class="proceso-meta" style="margin-top:.2rem;font-style:italic">${a.notas}</div>`:""}
         </div>
         <div style="display:flex;gap:.4rem;flex-shrink:0">
+          <button class="paso-btn" onclick="editarArticulo('${a.id}')" title="Editar">✎ Editar</button>
           <button class="paso-btn" onclick="agregarAlLote('${a.id}')" id="btn-lote-${a.id}" title="Agregar al lote de impresión">＋ Lote</button>
           <button class="paso-btn" onclick="verQR('${a.id}')" title="Ver QR">🔲 QR</button>
           <button class="paso-btn" onclick="eliminarArticulo('${a.id}')" title="Eliminar" style="color:#C0392B;border-color:#C0392B">✕</button>
@@ -3835,6 +3836,33 @@ function limpiarFormInv(){
   prev.src="";prev.style.display="none";
   document.getElementById("inv-foto-input").value="";
   document.getElementById("inv-msg").textContent="";
+  window._editandoArticuloId=null;
+  const titulo=document.getElementById("inv-nuevo-title");
+  if(titulo) titulo.textContent="Nuevo artículo";
+  const btn=document.getElementById("btn-guardar-articulo");
+  if(btn) btn.textContent="💾 Guardar artículo";
+}
+
+function editarArticulo(artId){
+  const a = (window._invData||[]).find(x=>x.id===artId);
+  if(!a) return;
+  goSec("inv-nuevo"); // dispara limpiarFormInv(); llenamos los campos después
+  window._editandoArticuloId = artId;
+  document.getElementById("inv-categoria").value = a.categoria||"";
+  document.getElementById("inv-modelo").value = a.modelo||"";
+  document.getElementById("inv-talla").value = a.talla||"";
+  document.getElementById("inv-color-picker").value = a.colorHex||"#C8A8D0";
+  document.getElementById("inv-color-nombre").value = a.colorNombre||"";
+  document.getElementById("inv-precio").value = a.precio||"";
+  document.getElementById("inv-cantidad").value = a.cantidad||1;
+  document.getElementById("inv-notas").value = a.notas||"";
+  const fotoPreview = document.getElementById("inv-foto-preview");
+  const fotoActual = a.tieneFoto ? (localStorage.getItem("foto_"+artId)||"") : "";
+  if(fotoActual){ fotoPreview.src=fotoActual; fotoPreview.style.display="block"; }
+  const titulo=document.getElementById("inv-nuevo-title");
+  if(titulo) titulo.textContent="Editar artículo";
+  const btn=document.getElementById("btn-guardar-articulo");
+  if(btn) btn.textContent="💾 Guardar cambios";
 }
 
 async function guardarArticuloInv(){
@@ -3845,38 +3873,50 @@ async function guardarArticuloInv(){
   if(!modelo){msg.textContent="El modelo o nombre es obligatorio.";return;}
   if(!categoria){msg.textContent="Selecciona una categoría.";return;}
 
+  const editId = window._editandoArticuloId||null;
   const fotoPreview = document.getElementById("inv-foto-preview");
   const fotoBase64 = fotoPreview.style.display!=="none" ? fotoPreview.src : "";
-  const artId = "INV"+Date.now();
+  const artId = editId || ("INV"+Date.now());
 
   // Foto se guarda en localStorage (no en JSONBin para no exceder el límite de tamaño)
   if(fotoBase64){
     try{ localStorage.setItem("foto_"+artId, fotoBase64); }catch(e){}
+  } else if(editId){
+    try{ localStorage.removeItem("foto_"+artId); }catch(e){}
   }
-
-  const articulo = {
-    id: artId,
-    categoria,
-    modelo,
-    talla: document.getElementById("inv-talla").value.trim(),
-    colorHex: document.getElementById("inv-color-picker").value,
-    colorNombre: document.getElementById("inv-color-nombre").value.trim(),
-    precio: document.getElementById("inv-precio").value,
-    cantidad: document.getElementById("inv-cantidad").value||1,
-    notas: document.getElementById("inv-notas").value.trim(),
-    tieneFoto: !!fotoBase64,
-    creadoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
-  };
 
   try{
     const data = await loadData();
     const inv = data.inventario||[];
-    inv.push(articulo);
-    await saveData({...data, inventario:inv});
-    window._invData = inv;
-    toast("Artículo guardado ✓");
+    const existente = editId ? inv.find(x=>x.id===editId) : null;
+
+    const articulo = {
+      id: artId,
+      categoria,
+      modelo,
+      talla: document.getElementById("inv-talla").value.trim(),
+      colorHex: document.getElementById("inv-color-picker").value,
+      colorNombre: document.getElementById("inv-color-nombre").value.trim(),
+      precio: document.getElementById("inv-precio").value,
+      cantidad: document.getElementById("inv-cantidad").value||1,
+      notas: document.getElementById("inv-notas").value.trim(),
+      tieneFoto: !!fotoBase64,
+      creadoEn: existente ? existente.creadoEn : new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}),
+      actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : undefined
+    };
+
+    let nuevoInv;
+    if(existente){
+      nuevoInv = inv.map(x=>x.id===editId?articulo:x);
+    } else {
+      nuevoInv = [...inv, articulo];
+    }
+
+    await saveData({...data, inventario:nuevoInv});
+    window._invData = nuevoInv;
+    toast(existente?"Artículo actualizado ✓":"Artículo guardado ✓");
     goSec("inv-qr");
-  }catch(e){console.error("guardarEdicionCliente error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
+  }catch(e){console.error("guardarArticuloInv error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
 }
 
 async function eliminarArticulo(artId){
