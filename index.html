@@ -1375,6 +1375,18 @@ async function incrementFolio(){
   return String(maxFolio+1).padStart(4,"0");
 }
 
+// ══ FECHA LOCAL (sin desfase UTC) ══
+// new Date().toISOString() convierte a UTC; en Coatzacoalcos (UTC-6) eso
+// hace que después de las 6:00 PM la fecha se recorra un día. Esta función
+// arma la fecha con los componentes LOCALES del dispositivo (año/mes/día).
+function fechaLocalISO(){
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,"0");
+  const dia = String(d.getDate()).padStart(2,"0");
+  return `${y}-${m}-${dia}`;
+}
+
 // ══ TOAST ══
 function toast(msg,type="ok"){
   const t=document.getElementById("toast");
@@ -1535,7 +1547,7 @@ function goSec(id){
   if(id==="pagos-pendientes"){renderPagosPendientes();}
   if(id==="pagos-historial"){renderHistorialPagos();}
   if(id==="corte-caja"){
-    const hoy=new Date().toISOString().split("T")[0];
+    const hoy=fechaLocalISO();
     const inp=document.getElementById("corte-fecha");
     if(inp && !inp.value) inp.value=hoy;
     renderCorteCaja();
@@ -1719,12 +1731,12 @@ function calcTotal(){
   });
   const total  = vestido + paquete + extras;
   const saldo  = total - anticipo;
-  document.getElementById("resumen-vestido").textContent  = "$"+vestido.toLocaleString();
-  document.getElementById("resumen-paquete").textContent  = "$"+paquete.toLocaleString();
-  document.getElementById("resumen-extras").textContent   = "$"+extras.toLocaleString();
-  document.getElementById("resumen-total").textContent    = "$"+total.toLocaleString();
-  document.getElementById("resumen-anticipo").textContent = "$"+anticipo.toLocaleString();
-  document.getElementById("resumen-saldo").textContent    = "$"+saldo.toLocaleString();
+  document.getElementById("resumen-vestido").textContent  = "$"+vestido.toLocaleString("es-MX");
+  document.getElementById("resumen-paquete").textContent  = "$"+paquete.toLocaleString("es-MX");
+  document.getElementById("resumen-extras").textContent   = "$"+extras.toLocaleString("es-MX");
+  document.getElementById("resumen-total").textContent    = "$"+total.toLocaleString("es-MX");
+  document.getElementById("resumen-anticipo").textContent = "$"+anticipo.toLocaleString("es-MX");
+  document.getElementById("resumen-saldo").textContent    = "$"+saldo.toLocaleString("es-MX");
 }
 
 // ══ GUARDAR CLIENTE ══
@@ -1945,9 +1957,9 @@ function calcEditTotal(){
   const elExtras = document.getElementById("edit-resumen-extras");
   const elTotal  = document.getElementById("edit-resumen-total");
   const elSaldo  = document.getElementById("edit-resumen-saldo");
-  if(elExtras) elExtras.textContent = "$"+extras.toLocaleString();
-  if(elTotal)  elTotal.textContent  = "$"+total.toLocaleString();
-  if(elSaldo)  elSaldo.textContent  = "$"+saldo.toLocaleString();
+  if(elExtras) elExtras.textContent = "$"+extras.toLocaleString("es-MX");
+  if(elTotal)  elTotal.textContent  = "$"+total.toLocaleString("es-MX");
+  if(elSaldo)  elSaldo.textContent  = "$"+saldo.toLocaleString("es-MX");
 }
 
 function cerrarEditarCliente(){
@@ -2084,7 +2096,7 @@ function renderClientes(lista){
       <td style="font-size:.76rem;white-space:nowrap">${c.tel||"—"}</td>
       <td style="font-size:.74rem">${c.correo||"—"}</td>
       <td style="font-size:.74rem;max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${c.domicilio||"—"}</td>
-      <td style="font-size:.76rem;white-space:nowrap">$${total.toLocaleString()}</td>
+      <td style="font-size:.76rem;white-space:nowrap">$${total.toLocaleString("es-MX")}</td>
       <td style="font-size:.74rem">${c.sispago==="En parcialidades"?"Parcialidades":"Liquidado"}</td>
       <td style="font-size:.74rem;text-align:center">${c.sispago==="En parcialidades"?(c.parcialidades||30)+" días":"—"}</td>
       <td style="font-size:.76rem;white-space:nowrap">${c.esNotaSencilla?"Venta directa":(tipos[c.tipo]||c.tipo||"—")}</td>
@@ -2094,7 +2106,7 @@ function renderClientes(lista){
       <td style="font-size:.76rem;text-align:center">${c.talla||"—"}</td>
       <td style="font-size:.74rem">${pkgNombre[c.paquete?.tipo]||"—"}</td>
       <td style="font-size:.74rem;white-space:nowrap">${fEntrega}</td>
-      <td style="font-size:.76rem;white-space:nowrap;color:var(--verde)">$${Number(c.anticipo||0).toLocaleString()}</td>
+      <td style="font-size:.76rem;white-space:nowrap;color:var(--verde)">$${Number(c.anticipo||0).toLocaleString("es-MX")}</td>
       <td style="font-size:.74rem">${c.fpago||"—"}</td>
       <td style="font-size:.74rem;white-space:nowrap;${venceClass}">${fVence}</td>
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}" style="white-space:nowrap">${c.estatus||"—"}</span></td>
@@ -2340,9 +2352,9 @@ function renderPagosPendientes(){
     return `<tr>
       <td style="font-size:.72rem;color:#AAA">${c.folio||"—"}</td>
       <td><strong style="font-weight:400;font-size:.8rem">${c.nombre}</strong></td>
-      <td style="font-size:.76rem">$${total.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--verde)">$${pagado.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--rojo);font-weight:${saldoFinal>0?'500':'400'}">$${saldoFinal.toLocaleString()}</td>
+      <td style="font-size:.76rem">$${total.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--verde)">$${pagado.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--rojo);font-weight:${saldoFinal>0?'500':'400'}">$${saldoFinal.toLocaleString("es-MX")}</td>
       <td style="font-size:.74rem">${c.fechaLimite?new Date(c.fechaLimite+"T12:00:00").toLocaleDateString("es-MX"):"—"}</td>
       <td>${estadoHTML}</td>
       <td><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Registrar abono">➕</button></td>
@@ -2356,15 +2368,15 @@ function renderPagosPendientes(){
     resumen.innerHTML = `
       <div class="card" style="padding:.7rem .9rem;text-align:center">
         <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Total facturado</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--cafe)">$${sumaTotal.toLocaleString()}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--cafe)">$${sumaTotal.toLocaleString("es-MX")}</div>
       </div>
       <div class="card" style="padding:.7rem .9rem;text-align:center">
         <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Total cobrado</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--verde)">$${sumaPagado.toLocaleString()}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--verde)">$${sumaPagado.toLocaleString("es-MX")}</div>
       </div>
       <div class="card" style="padding:.7rem .9rem;text-align:center">
         <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Saldo pendiente</div>
-        <div style="font-size:1.1rem;font-weight:700;color:var(--rojo)">$${sumaSaldo.toLocaleString()}</div>
+        <div style="font-size:1.1rem;font-weight:700;color:var(--rojo)">$${sumaSaldo.toLocaleString("es-MX")}</div>
       </div>`;
   }
 }
@@ -2385,11 +2397,11 @@ function renderHistorialPagos(){
     return `<tr>
       <td style="font-size:.72rem;color:#AAA">${c.folio||"—"}</td>
       <td style="font-size:.8rem">${c.nombre}</td>
-      <td style="font-size:.76rem">$${total.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--verde)">$${anticipo.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--verde)">$${abonos.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:${saldo>0?"var(--rojo)":"var(--verde)"}">$${saldo.toLocaleString()}</td>
-      <td style="font-size:.74rem">${interes>0?'<span class="status-badge alerta-interes">+$'+interes.toLocaleString()+'</span>':"—"}</td>
+      <td style="font-size:.76rem">$${total.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--verde)">$${anticipo.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--verde)">$${abonos.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:${saldo>0?"var(--rojo)":"var(--verde)"}">$${saldo.toLocaleString("es-MX")}</td>
+      <td style="font-size:.74rem">${interes>0?'<span class="status-badge alerta-interes">+$'+interes.toLocaleString("es-MX")+'</span>':"—"}</td>
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}">${c.estatus||"—"}</span></td>
     </tr>`;
   }).join("");
@@ -2450,7 +2462,7 @@ function renderCorteCaja(){
     porMetodo[m] = (porMetodo[m]||0) + x.monto;
   });
   const metodosHTML = Object.entries(porMetodo).map(([m,v])=>
-    `<div style="font-size:.72rem;color:#888;margin-top:.2rem">${m}: <strong>$${v.toLocaleString()}</strong></div>`
+    `<div style="font-size:.72rem;color:#888;margin-top:.2rem">${m}: <strong>$${v.toLocaleString("es-MX")}</strong></div>`
   ).join("");
 
   // Cards de resumen
@@ -2459,17 +2471,17 @@ function renderCorteCaja(){
     <div class="card" style="padding:.7rem .9rem;text-align:center;grid-column:1/-1">
       <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.2rem">Corte del día</div>
       <div style="font-size:.78rem;color:var(--dorado-d);margin-bottom:.4rem">${fechaLabel}</div>
-      <div style="font-size:1.3rem;font-weight:700;color:var(--cafe)">$${totalDia.toLocaleString()}</div>
+      <div style="font-size:1.3rem;font-weight:700;color:var(--cafe)">$${totalDia.toLocaleString("es-MX")}</div>
       ${metodosHTML}
     </div>
     <div class="card" style="padding:.7rem .9rem;text-align:center">
       <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Anticipos</div>
-      <div style="font-size:1rem;font-weight:700;color:var(--verde)">$${totalAntic.toLocaleString()}</div>
+      <div style="font-size:1rem;font-weight:700;color:var(--verde)">$${totalAntic.toLocaleString("es-MX")}</div>
       <div style="font-size:.7rem;color:#AAA">${anticiposHoy.length} movimiento(s)</div>
     </div>
     <div class="card" style="padding:.7rem .9rem;text-align:center">
       <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Abonos</div>
-      <div style="font-size:1rem;font-weight:700;color:var(--verde)">$${totalAbon.toLocaleString()}</div>
+      <div style="font-size:1rem;font-weight:700;color:var(--verde)">$${totalAbon.toLocaleString("es-MX")}</div>
       <div style="font-size:.7rem;color:#AAA">${abonosHoy.length} movimiento(s)</div>
     </div>`;
 
@@ -2479,7 +2491,7 @@ function renderCorteCaja(){
       <td style="font-size:.72rem;color:#AAA">${x.folio}</td>
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
-      <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString()}</td>
+      <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
     </tr>`).join("");
     anticWrap.style.display="block";
@@ -2494,7 +2506,7 @@ function renderCorteCaja(){
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
       <td style="font-size:.72rem;color:#AAA">${x.ref}</td>
-      <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString()}</td>
+      <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
     </tr>`).join("");
     abonoWrap.style.display="block";
@@ -2519,11 +2531,11 @@ function abrirAbonoModal(id){
   const interes = c.interes==="si" ? total*0.1 : 0;
   const saldo = total+interes-pagado;
   document.getElementById("abono-cliente-nombre").textContent = c.nombre;
-  document.getElementById("abono-total").textContent = "$"+(total+interes).toLocaleString();
-  document.getElementById("abono-pagado").textContent = "$"+pagado.toLocaleString();
-  document.getElementById("abono-saldo").textContent = "$"+saldo.toLocaleString();
+  document.getElementById("abono-total").textContent = "$"+(total+interes).toLocaleString("es-MX");
+  document.getElementById("abono-pagado").textContent = "$"+pagado.toLocaleString("es-MX");
+  document.getElementById("abono-saldo").textContent = "$"+saldo.toLocaleString("es-MX");
   document.getElementById("abono-monto").value = "";
-  document.getElementById("abono-fecha").value = new Date().toISOString().split("T")[0];
+  document.getElementById("abono-fecha").value = fechaLocalISO();
   document.getElementById("abono-ref").value = "";
   document.getElementById("abono-msg").textContent = "";
   document.getElementById("abono-proroga").checked = !!c.proroga;
@@ -2611,8 +2623,8 @@ function verNotaSencillaGuardada(id){
     <tr>
       <td style="border:1px solid #CCC;padding:.4rem;text-align:center">${it.qty||1}</td>
       <td style="border:1px solid #CCC;padding:.4rem">${it.desc}</td>
-      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${(Number(it.precio)||0).toLocaleString()}</td>
-      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${((Number(it.qty)||1)*(Number(it.precio)||0)).toLocaleString()}</td>
+      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${(Number(it.precio)||0).toLocaleString("es-MX")}</td>
+      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${((Number(it.qty)||1)*(Number(it.precio)||0)).toLocaleString("es-MX")}</td>
     </tr>`).join("");
   const vacías = Math.max(0,8-items.filter(it=>it.desc).length);
   for(let i=0;i<vacías;i++){
@@ -2659,7 +2671,7 @@ function verNotaSencillaGuardada(id){
     <table style="width:100%;border-collapse:collapse;margin-bottom:.8rem">
       <tr>
         <td style="border:1px solid #CCC;padding:.4rem;text-align:right;font-weight:700;font-size:.95rem" colspan="4">
-          TOTAL: <span style="color:#7A4F2A">$${Number(c.precio||0).toLocaleString()}</span>
+          TOTAL: <span style="color:#7A4F2A">$${Number(c.precio||0).toLocaleString("es-MX")}</span>
         </td>
       </tr>
     </table>
@@ -2752,8 +2764,8 @@ async function generarEImprimirNotaSencilla(folio){
     <tr>
       <td style="border:1px solid #CCC;padding:.4rem;text-align:center">${it.qty||1}</td>
       <td style="border:1px solid #CCC;padding:.4rem">${it.desc}</td>
-      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${(Number(it.precio)||0).toLocaleString()}</td>
-      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${((Number(it.qty)||1)*(Number(it.precio)||0)).toLocaleString()}</td>
+      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${(Number(it.precio)||0).toLocaleString("es-MX")}</td>
+      <td style="border:1px solid #CCC;padding:.4rem;text-align:right">$${((Number(it.qty)||1)*(Number(it.precio)||0)).toLocaleString("es-MX")}</td>
     </tr>`).join("");
 
   // Filas vacías
@@ -2819,7 +2831,7 @@ async function generarEImprimirNotaSencilla(folio){
     <table style="width:100%;border-collapse:collapse;margin-bottom:.8rem">
       <tr>
         <td style="border:1px solid #CCC;padding:.4rem;text-align:right;font-weight:700;font-size:.95rem" colspan="4">
-          TOTAL: <span style="color:#7A4F2A">$${subtotal.toLocaleString()}</span>
+          TOTAL: <span style="color:#7A4F2A">$${subtotal.toLocaleString("es-MX")}</span>
         </td>
       </tr>
     </table>
@@ -2842,7 +2854,7 @@ async function generarEImprimirNotaSencilla(folio){
       id:"NS"+Date.now(),
       esNotaSencilla:true,
       folio:null,
-      fecha:new Date().toISOString().slice(0,10),
+      fecha:fechaLocalISO(),
       nombre,
       tel,
       estatus:"Venta directa",
@@ -3620,7 +3632,7 @@ function buildInvCard(a){
         <div>
           <div class="proceso-nombre">${a.modelo||"Sin nombre"}</div>
           <div class="proceso-meta">${a.categoria||"—"} · Talla ${a.talla||"—"} · <span style="display:inline-block;width:10px;height:10px;background:${a.colorHex||'#CCC'};border-radius:50%;vertical-align:middle"></span> ${a.colorNombre||"—"}</div>
-          <div class="proceso-meta" style="margin-top:.2rem">Stock: <strong>${a.cantidad||1}</strong> · $${Number(a.precio||0).toLocaleString()}</div>
+          <div class="proceso-meta" style="margin-top:.2rem">Stock: <strong>${a.cantidad||1}</strong> · $${Number(a.precio||0).toLocaleString("es-MX")}</div>
           ${a.notas?`<div class="proceso-meta" style="margin-top:.2rem;font-style:italic">${a.notas}</div>`:""}
         </div>
         <div style="display:flex;gap:.4rem;flex-shrink:0">
@@ -3647,7 +3659,7 @@ function verQR(artId){
         <div class="proceso-meta">${a.categoria||"—"}</div>
         <div class="proceso-meta">Talla: <strong>${a.talla||"—"}</strong></div>
         <div class="proceso-meta">Color: <span style="display:inline-block;width:10px;height:10px;background:${a.colorHex||'#CCC'};border-radius:50%;vertical-align:middle"></span> <strong>${a.colorNombre||"—"}</strong></div>
-        <div class="proceso-meta">Precio: <strong>$${Number(a.precio||0).toLocaleString()}</strong></div>
+        <div class="proceso-meta">Precio: <strong>$${Number(a.precio||0).toLocaleString("es-MX")}</strong></div>
         <div class="proceso-meta">Stock: <strong>${a.cantidad||1}</strong></div>
         ${a.notas?`<div class="proceso-meta" style="margin-top:.3rem;font-style:italic">${a.notas}</div>`:""}
       </div>
@@ -3717,7 +3729,7 @@ function abrirModalLote(){
       <div id="lote-qr-${artId}" style="display:flex;justify-content:center;margin-bottom:4px"></div>
       <div style="font-size:.65rem;font-weight:600;color:#1a1a1a;line-height:1.2">${a.modelo||"Artículo"}</div>
       <div style="font-size:.58rem;color:#888;margin-top:2px">${(a.categoria||"")} · T.${a.talla||"—"} · ${a.colorNombre||"—"}</div>
-      <div style="font-size:.62rem;font-weight:600;color:#7A4F2A;margin-top:2px">$${Number(a.precio||0).toLocaleString()}</div>
+      <div style="font-size:.62rem;font-weight:600;color:#7A4F2A;margin-top:2px">$${Number(a.precio||0).toLocaleString("es-MX")}</div>
       <div style="font-size:.5rem;color:#BBB;margin-top:2px">${artId}</div>
       <button class="no-print" onclick="quitarDeLote('${artId}')" style="position:absolute;top:2px;right:2px;background:none;border:none;cursor:pointer;font-size:.65rem;color:#C0392B;padding:0;line-height:1" title="Quitar">✕</button>
     `;
@@ -3775,7 +3787,7 @@ function imprimirQR(artId){
   // Llenar el modal
   document.getElementById("qr-print-nombre").textContent = a.modelo||"Artículo";
   document.getElementById("qr-print-meta").textContent = (a.categoria||"") + " · Talla " + (a.talla||"—") + " · " + (a.colorNombre||"");
-  document.getElementById("qr-print-precio").textContent = "$" + Number(a.precio||0).toLocaleString();
+  document.getElementById("qr-print-precio").textContent = "$" + Number(a.precio||0).toLocaleString("es-MX");
   document.getElementById("qr-print-id").textContent = "ID: " + artId;
   // Generar QR en el modal
   const qrEl = document.getElementById("qr-print-img");
@@ -4071,14 +4083,14 @@ function generarNotaVenta(c){
     accesoriosRows += `<tr>
       <td style="text-align:center;border:1px solid #CCC;padding:.4rem">1</td>
       <td style="border:1px solid #CCC;padding:.4rem">${c.paquete.tipo==="xv"?"Paquete XV":c.paquete.tipo==="novia"?"Paquete Novia":"Paquete personalizado"} — ${comps}</td>
-      <td style="text-align:right;border:1px solid #CCC;padding:.4rem">$${paquete.toLocaleString()}</td>
+      <td style="text-align:right;border:1px solid #CCC;padding:.4rem">$${paquete.toLocaleString("es-MX")}</td>
     </tr>`;
   }
   (c.paquete?.adicionales||[]).forEach(a=>{
     accesoriosRows += `<tr>
       <td style="text-align:center;border:1px solid #CCC;padding:.4rem">1</td>
       <td style="border:1px solid #CCC;padding:.4rem">${a.nombre}${a.nota?" — "+a.nota:""}</td>
-      <td style="text-align:right;border:1px solid #CCC;padding:.4rem">$${Number(a.precio||0).toLocaleString()}</td>
+      <td style="text-align:right;border:1px solid #CCC;padding:.4rem">$${Number(a.precio||0).toLocaleString("es-MX")}</td>
     </tr>`;
   });
   const filasVacias = Math.max(0,6-(c.paquete?.adicionales?.length||0)-1);
@@ -4139,7 +4151,7 @@ function generarNotaVenta(c){
       </tr>
       <tr>
         <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Precio:</strong></td>
-        <td colspan="3" style="border:1px solid #CCC;padding:.4rem .6rem"><strong style="color:#7A4F2A">$${total.toLocaleString()}</strong></td>
+        <td colspan="3" style="border:1px solid #CCC;padding:.4rem .6rem"><strong style="color:#7A4F2A">$${total.toLocaleString("es-MX")}</strong></td>
       </tr>
     </table>
 
@@ -4173,19 +4185,19 @@ function generarNotaVenta(c){
       ${accesoriosRows}
       <tr>
         <td colspan="2" style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right">Precio del vestido:</td>
-        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right">$${precio.toLocaleString()}</td>
+        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right">$${precio.toLocaleString("es-MX")}</td>
       </tr>
       <tr>
         <td colspan="2" style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700">TOTAL:</td>
-        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700;color:#7A4F2A">$${total.toLocaleString()}</td>
+        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700;color:#7A4F2A">$${total.toLocaleString("es-MX")}</td>
       </tr>
       <tr>
         <td colspan="2" style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;color:#1E8449">Anticipo:</td>
-        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;color:#1E8449">$${anticipo.toLocaleString()}</td>
+        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;color:#1E8449">$${anticipo.toLocaleString("es-MX")}</td>
       </tr>
       <tr>
         <td colspan="2" style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700;color:#C0392B">Saldo restante:</td>
-        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700;color:#C0392B">$${saldo.toLocaleString()}</td>
+        <td style="border:1px solid #CCC;padding:.4rem .5rem;text-align:right;font-weight:700;color:#C0392B">$${saldo.toLocaleString("es-MX")}</td>
       </tr>
     </table>
 
@@ -4313,12 +4325,12 @@ function renderEntregasFecha(){
       <td style="font-size:.76rem">${c.modelo||"—"}</td>
       <td><span class="color-dot" style="background:${c.color?.hex||'#CCC'}"></span><span style="font-size:.74rem">${c.color?.nombre||"—"}</span></td>
       <td style="font-size:.74rem">${c.entrega?new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX"):"—"}</td>
-      <td style="font-size:.76rem">$${total.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:${saldo>0?"var(--rojo)":"var(--verde)"}">$${saldo.toLocaleString()}</td>
+      <td style="font-size:.76rem">$${total.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:${saldo>0?"var(--rojo)":"var(--verde)"}">$${saldo.toLocaleString("es-MX")}</td>
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}">${c.estatus||"—"}</span></td>
     </tr>`;
   }).join("");
-  if(resumenEl)resumenEl.innerHTML=`${filtrados.length} entrega${filtrados.length!==1?"s":""} &nbsp;·&nbsp; Total <strong>$${totalGeneral.toLocaleString()}</strong> &nbsp;·&nbsp; Saldo pendiente <strong style="color:var(--rojo)">$${saldoGeneral.toLocaleString()}</strong>`;
+  if(resumenEl)resumenEl.innerHTML=`${filtrados.length} entrega${filtrados.length!==1?"s":""} &nbsp;·&nbsp; Total <strong>$${totalGeneral.toLocaleString("es-MX")}</strong> &nbsp;·&nbsp; Saldo pendiente <strong style="color:var(--rojo)">$${saldoGeneral.toLocaleString("es-MX")}</strong>`;
 }
 
 function estatusClass(e){
@@ -4349,9 +4361,9 @@ function renderPedidos(){
       <td style="font-size:.76rem">${c.modelo||"—"}</td>
       <td><span class="color-dot" style="background:${c.color?.hex||'#CCC'}"></span><span style="font-size:.74rem">${c.color?.nombre||"—"}</span></td>
       <td style="font-size:.74rem">${c.entrega?new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX"):"—"}</td>
-      <td style="font-size:.76rem">$${total.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--verde)">$${anticipo.toLocaleString()}</td>
-      <td style="font-size:.76rem;color:var(--rojo)">$${saldo.toLocaleString()}</td>
+      <td style="font-size:.76rem">$${total.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--verde)">$${anticipo.toLocaleString("es-MX")}</td>
+      <td style="font-size:.76rem;color:var(--rojo)">$${saldo.toLocaleString("es-MX")}</td>
       <td>
         <select class="status-badge ${cls}" onchange="cambiarEstatusPedido('${c.id}',this.value)">
           <option value="Pedido Realizado" ${!c.estatus||c.estatus==="Pedido Realizado"||c.estatus==="Pedido realizado"?"selected":""}>Pedido Realizado</option>
@@ -4418,7 +4430,7 @@ function generarContrato(c){
     </table>
     <div style="font-weight:700;text-align:center;letter-spacing:.08em;margin-bottom:4pt;border-bottom:1pt solid #CCC;padding-bottom:2pt">CLÁUSULAS</div>
     <p style="margin-bottom:3pt"><strong>PRIMERA.- OBJETO DEL CONTRATO.</strong> EL PROVEEDOR se obliga a elaborar y/o proporcionar a LA CLIENTE el vestido y accesorios especificados en la NOTA DE VENTA Folio <strong>${folioNota}</strong>, anexa al presente contrato.</p>
-    <p style="margin-bottom:3pt"><strong>SEGUNDA.- PRECIO Y FORMA DE PAGO.</strong> Precio total: <strong style="border-bottom:1.5pt solid #000;">$${total.toLocaleString()}</strong>. Anticipo: <strong style="border-bottom:1.5pt solid #000;">$${anticipo.toLocaleString()}</strong> al firmar. Sistema: <strong>${c.sispago==="En parcialidades"?"parcialidades cada "+parc+" días":"liquidado"}</strong>. La entrega solo procede si el total está liquidado. Sin pagos ni contacto por 30+ días y sin 50% de anticipo, el contrato se cancela automáticamente.</p>
+    <p style="margin-bottom:3pt"><strong>SEGUNDA.- PRECIO Y FORMA DE PAGO.</strong> Precio total: <strong style="border-bottom:1.5pt solid #000;">$${total.toLocaleString("es-MX")}</strong>. Anticipo: <strong style="border-bottom:1.5pt solid #000;">$${anticipo.toLocaleString("es-MX")}</strong> al firmar. Sistema: <strong>${c.sispago==="En parcialidades"?"parcialidades cada "+parc+" días":"liquidado"}</strong>. La entrega solo procede si el total está liquidado. Sin pagos ni contacto por 30+ días y sin 50% de anticipo, el contrato se cancela automáticamente.</p>
     <p style="margin-bottom:3pt"><strong>SEGUNDA BIS.- FECHA LÍMITE DE PAGO E INTERESES MORATORIOS.</strong> El pago total deberá realizarse a más tardar el <strong>${fL}</strong>. Vencido dicho plazo se aplicará un cargo del 10% sobre el precio total, previo a la entrega.</p>
     <p style="margin-bottom:3pt"><strong>TERCERA.- AJUSTES Y MODIFICACIONES.</strong> EL PROVEEDOR realizará ajustes según fechas de prueba pactadas. Modificaciones adicionales podrán generar costo extra. No se realizarán cambios de última hora que alteren significativamente el diseño.</p>
     <p style="margin-bottom:3pt"><strong>CUARTA.- CONFIDENCIALIDAD Y USO DE IMAGEN.</strong> LA CLIENTA autoriza el uso de imágenes del vestido y/o evento para promoción, sin revelar datos personales. ${autImg}</p>
