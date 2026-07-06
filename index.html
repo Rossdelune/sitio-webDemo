@@ -1559,6 +1559,7 @@ function goSec(id){
   if(id==="progreso-formato"){renderFormatoAjustesLista();}
   if(id==="inv-qr"){renderInventario();}
   if(id==="inv-nuevo"){limpiarFormInv();}
+  if(id==="lista-clientes"){renderClientes();}
   if(id==="nuevo-cliente"){limpiarFormularioCliente();}
 }
 
@@ -3054,6 +3055,7 @@ async function togglePasoPedido(clienteId, pasoId){
         }
         await saveData({...data, users:allUsers, clientes:allClientes, inventario:inv});
         renderProceso();
+        renderClientes();
         toast(cli.progreso.pedido.entregado ? "Entrega marcada ✓"+avisoInventario : "Entrega desmarcada", avisoInventario?"err":"ok");
         return;
       }
