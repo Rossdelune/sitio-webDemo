@@ -3056,6 +3056,7 @@ async function togglePasoPedido(clienteId, pasoId){
         await saveData({...data, users:allUsers, clientes:allClientes, inventario:inv});
         renderProceso();
         renderClientes();
+        renderInventario();
         toast(cli.progreso.pedido.entregado ? "Entrega marcada ✓"+avisoInventario : "Entrega desmarcada", avisoInventario?"err":"ok");
         return;
       }
