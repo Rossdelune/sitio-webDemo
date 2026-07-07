@@ -316,6 +316,24 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 .paso-nota-input{width:100%;border:none;border-bottom:1px dashed #DDD;padding:.3rem 0;font-family:"Lato",sans-serif;font-size:.76rem;color:var(--texto);background:transparent;outline:none;resize:none;transition:border-color .2s;}
 .paso-nota-input:focus{border-color:var(--dorado);}
 
+/* ══ MATRIZ DE MODELO (Buscar modelo) ══ */
+.matriz-modelo{background:#FFFDF9;border:1px solid var(--borde);border-radius:4px;padding:1.1rem 1.2rem;margin-bottom:1rem;box-shadow:0 3px 14px rgba(122,79,42,.07);}
+.matriz-modelo-nombre{font-family:"Cormorant Garamond",serif;font-size:1.3rem;font-weight:500;color:var(--dorado-d);letter-spacing:.01em;margin-bottom:.9rem;padding-bottom:.6rem;border-bottom:1px solid var(--borde);}
+.matriz-scroll{overflow-x:auto;padding-bottom:.2rem;}
+.matriz-grid{display:grid;gap:.5rem .4rem;align-items:center;min-width:max-content;}
+.matriz-corner{}
+.matriz-talla-head{font-family:"Lato",sans-serif;font-size:.62rem;font-weight:600;letter-spacing:.13em;text-transform:uppercase;color:#B39B7A;text-align:center;padding-bottom:.4rem;}
+.matriz-color-label{display:flex;align-items:center;gap:.5rem;font-family:"Lato",sans-serif;font-size:.82rem;color:var(--texto);white-space:nowrap;padding-right:.6rem;}
+.matriz-color-dot{width:13px;height:13px;border-radius:50%;border:1px solid rgba(0,0,0,.1);flex-shrink:0;box-shadow:0 1px 2px rgba(0,0,0,.08);}
+.matriz-celda{text-align:center;}
+.matriz-badge{width:34px;height:34px;border-radius:50%;background:var(--dorado-g);color:#FFF8EC;border:none;font-family:"Lato",sans-serif;font-weight:700;font-size:.85rem;cursor:pointer;box-shadow:0 2px 7px rgba(122,79,42,.3);transition:transform .15s ease,box-shadow .15s ease;}
+.matriz-badge:hover{transform:scale(1.1);box-shadow:0 3px 10px rgba(122,79,42,.4);}
+.matriz-badge.activa{background:var(--cafe,#4A2E1F);transform:scale(1.05);}
+.matriz-vacia{color:#E3D9C8;font-size:.95rem;font-weight:300;}
+.matriz-detalle{margin-top:.2rem;}
+.matriz-detalle-inner{margin-top:.8rem;padding-top:.8rem;border-top:1px dashed var(--borde);animation:matrizFadeIn .25s ease;}
+@keyframes matrizFadeIn{from{opacity:0;transform:translateY(-4px);}to{opacity:1;transform:translateY(0);}}
+
 .proceso-card{background:#fff;border-radius:4px;box-shadow:0 2px 10px rgba(122,79,42,.07);margin-bottom:1rem;overflow:hidden;}
 .proceso-card-header{
   display:flex;align-items:center;justify-content:space-between;
@@ -3776,41 +3794,41 @@ function buildMatrizModelo(modelo, articulos){
   });
   const colores = Object.keys(coloresMap);
   const modelKey = (modelo||"modelo").replace(/[^a-zA-Z0-9]/g,"_")||"modelo";
+  const cols = "130px repeat("+tallas.length+", 46px)";
 
-  const thead = '<th style="padding:.35rem .5rem;text-align:left;font-size:.7rem;color:#AAA;font-weight:600">Color</th>' +
-    tallas.map(t=>`<th style="padding:.35rem .5rem;text-align:center;font-size:.7rem;color:#AAA;font-weight:600">${t}</th>`).join("");
+  const headCells = '<div class="matriz-corner"></div>' +
+    tallas.map(t=>`<div class="matriz-talla-head">${t}</div>`).join("");
 
   const filas = colores.map(ck=>{
     const c = coloresMap[ck];
+    const label = `<div class="matriz-color-label"><span class="matriz-color-dot" style="background:${c.hex}"></span>${c.nombre}</div>`;
     const celdas = tallas.map(t=>{
       const matches = articulos.filter(a=>(a.talla||"—")===t && (a.colorNombre||a.colorHex||"—").toLowerCase()===ck);
-      if(!matches.length) return '<td style="padding:.35rem .5rem;text-align:center;color:#DDD">–</td>';
+      if(!matches.length) return '<div class="matriz-celda matriz-vacia">–</div>';
       const total = matches.reduce((s,a)=>s+(Number(a.cantidad)||0),0);
       const cellId = modelKey+"__"+t.replace(/\W/g,"")+"__"+ck.replace(/\W/g,"");
       window._matrizCeldas[cellId] = matches.map(a=>a.id);
-      return `<td style="padding:.35rem .5rem;text-align:center">
-        <button onclick="toggleDetalleInvCelda('${cellId}','${modelKey}')" style="background:none;border:none;color:var(--dorado-d);font-weight:700;cursor:pointer;text-decoration:underline;font-size:.85rem">${total}</button>
-      </td>`;
+      return `<div class="matriz-celda">
+        <button class="matriz-badge" id="badge-${cellId}" onclick="toggleDetalleInvCelda('${cellId}','${modelKey}')">${total}</button>
+      </div>`;
     }).join("");
-    return `<tr>
-      <td style="padding:.35rem .5rem;white-space:nowrap;font-size:.8rem">
-        <span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${c.hex};border:1px solid #DDD;vertical-align:middle;margin-right:.35rem"></span>${c.nombre}
-      </td>${celdas}
-    </tr>`;
+    return label + celdas;
   }).join("");
 
-  return `<div class="card" style="padding:.7rem 1rem;margin-bottom:.7rem">
-    <div style="font-weight:700;color:var(--cafe);margin-bottom:.5rem">${modelo}</div>
-    <div style="overflow-x:auto">
-      <table style="border-collapse:collapse;width:100%"><thead><tr>${thead}</tr></thead><tbody>${filas}</tbody></table>
+  return `<div class="matriz-modelo">
+    <div class="matriz-modelo-nombre">${modelo}</div>
+    <div class="matriz-scroll">
+      <div class="matriz-grid" style="grid-template-columns:${cols}">${headCells}${filas}</div>
     </div>
-    <div id="detalle-${modelKey}"></div>
+    <div class="matriz-detalle" id="detalle-${modelKey}"></div>
   </div>`;
 }
 
 function toggleDetalleInvCelda(cellId, modelKey){
   const cont = document.getElementById("detalle-"+modelKey);
   if(!cont) return;
+  const prevBadge = document.getElementById("badge-"+cont.dataset.activo);
+  if(prevBadge) prevBadge.classList.remove("activa");
   if(cont.dataset.activo===cellId){
     cont.innerHTML=""; cont.dataset.activo="";
     return;
@@ -3818,8 +3836,10 @@ function toggleDetalleInvCelda(cellId, modelKey){
   const ids = window._matrizCeldas[cellId]||[];
   const inv = window._invData||[];
   const piezas = ids.map(id=>inv.find(a=>a.id===id)).filter(Boolean);
-  cont.innerHTML = '<div style="margin-top:.6rem;padding-top:.6rem;border-top:1px dashed #E8DDD0">' + piezas.map(a=>buildInvCard(a)).join("") + '</div>';
+  cont.innerHTML = '<div class="matriz-detalle-inner">' + piezas.map(a=>buildInvCard(a)).join("") + '</div>';
   cont.dataset.activo = cellId;
+  const badge = document.getElementById("badge-"+cellId);
+  if(badge) badge.classList.add("activa");
 }
 
 function buscarModeloInventario(q){
