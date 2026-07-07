@@ -562,6 +562,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <button class="nav-btn" id="nb-inventario" onclick="toggleNav('inventario')">🏷️ Inventario <span class="arrow">▾</span></button>
       <div class="subnav" id="sub-inventario">
         <button class="sub-item" onclick="goSec('inv-qr')">📦 Inventario</button>
+        <button class="sub-item" onclick="goSec('inv-buscar')">🔍 Buscar modelo</button>
         <button class="sub-item" onclick="goSec('inv-paquetes')">🎁 Paquetes</button>
       </div>
     </div>
@@ -1071,6 +1072,17 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
+    <!-- ── BUSCAR MODELO (submenú aparte, no mezcla con la lista general) ── -->
+    <div class="section" id="sec-inv-buscar">
+      <div class="sec-title">Buscar modelo</div>
+      <div class="card" style="padding:.8rem 1rem">
+        <input class="proceso-search" id="inv-buscar-input" placeholder="🔍 Escribe el modelo o código (ej: WF2813)..." oninput="buscarModeloInventario(this.value)" style="width:100%;margin-bottom:.8rem" autocomplete="off">
+        <div id="inv-buscar-resultados">
+          <p style="color:#AAA;font-size:.82rem;padding:.5rem">Empieza a escribir para ver coincidencias en vivo.</p>
+        </div>
+      </div>
+    </div>
+
     <!-- ── NUEVO ARTÍCULO ── -->
     <div class="section" id="sec-inv-nuevo">
       <div class="sec-title" id="inv-nuevo-title">Nuevo artículo</div>
@@ -1558,6 +1570,11 @@ function goSec(id){
   if(id==="progreso-diseno"){renderDiseno();}
   if(id==="progreso-formato"){renderFormatoAjustesLista();}
   if(id==="inv-qr"){renderInventario();}
+  if(id==="inv-buscar"){
+    const inp=document.getElementById("inv-buscar-input");
+    if(inp) inp.value="";
+    buscarModeloInventario("");
+  }
   if(id==="inv-nuevo"){limpiarFormInv();}
   if(id==="lista-clientes"){renderClientes();}
   if(id==="nuevo-cliente"){limpiarFormularioCliente();}
@@ -3573,7 +3590,7 @@ const SECCIONES_CTRL = [
   {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","historial-pagos","nota-sencilla","corte-caja"]},
   {id:"pedidos",        label:"📋 Pedidos",            subs:["todos-pedidos","entregas-fecha"]},
   {id:"progreso",       label:"📦 Progreso",           subs:["progreso-pedido","progreso-agenda","progreso-diseno","progreso-formato"]},
-  {id:"inventario",     label:"🏷️ Inventario",         subs:["inv-qr","inv-paquetes"]},
+  {id:"inventario",     label:"🏷️ Inventario",         subs:["inv-qr","inv-buscar","inv-paquetes"]},
 ];
 
 let _permisosWorkerActual = null;
@@ -3691,6 +3708,25 @@ function renderInventario(){
     return;
   }
   lista.innerHTML = inv.map(a => buildInvCard(a)).join("");
+}
+
+function buscarModeloInventario(q){
+  const cont = document.getElementById("inv-buscar-resultados");
+  if(!cont) return;
+  const txt = (q||"").toLowerCase().trim().replace(/\s+/g," ");
+  if(!txt){
+    cont.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Empieza a escribir para ver coincidencias en vivo.</p>';
+    return;
+  }
+  const inv = (window._invData||[]);
+  const coincidencias = inv.filter(a => (a.modelo||"").toLowerCase().trim().replace(/\s+/g," ").includes(txt));
+  if(!coincidencias.length){
+    cont.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin coincidencias para "'+q+'".</p>';
+    return;
+  }
+  cont.innerHTML =
+    '<p style="font-size:.72rem;color:var(--dorado-d);margin-bottom:.5rem">'+coincidencias.length+' resultado(s) encontrado(s):</p>' +
+    coincidencias.map(a => buildInvCard(a)).join("");
 }
 
 function filtrarInventario(q){
