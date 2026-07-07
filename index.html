@@ -1161,6 +1161,16 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div class="msg-err" id="my-msg" style="min-height:1rem;"></div>
         <button class="btn-save" style="margin-top:.8rem" onclick="saveMyAccount()">Guardar cambios</button>
       </div>
+      <div class="card">
+        <div class="card-title">Clave de desbloqueo</div>
+        <p style="color:#AAA;font-size:.78rem;margin-bottom:.6rem">Esta clave es distinta a tu contraseña de acceso. Se usa cuando un colaborador necesita que autorices temporalmente una sección bloqueada.</p>
+        <div class="form-row">
+          <div class="fi-inline"><label>Nueva clave de desbloqueo</label><input type="password" id="my-cd1" placeholder="Nueva clave"></div>
+          <div class="fi-inline"><label>Confirmar clave</label><input type="password" id="my-cd2" placeholder="Repetir"></div>
+        </div>
+        <div class="msg-err" id="my-cd-msg" style="min-height:1rem;"></div>
+        <button class="btn-save" style="margin-top:.8rem" onclick="saveClaveDesbloqueo()">Guardar clave de desbloqueo</button>
+      </div>
     </div>
 
     <!-- ── COLABORADORES ── -->
@@ -2260,6 +2270,26 @@ async function saveMyAccount(){
     document.getElementById("my-p1").value="";document.getElementById("my-p2").value="";
     msg.style.color="var(--verde)";msg.textContent="✓ Cambios guardados.";
     toast("Cuenta actualizada ✓");
+  }catch(e){msg.textContent="Error al guardar.";}
+}
+
+async function saveClaveDesbloqueo(){
+  const cd1=document.getElementById("my-cd1").value;
+  const cd2=document.getElementById("my-cd2").value;
+  const msg=document.getElementById("my-cd-msg");
+  msg.style.color="var(--rojo)";msg.textContent="";
+  if(!cd1){msg.textContent="Escribe la nueva clave de desbloqueo.";return;}
+  if(cd1!==cd2){msg.textContent="Las claves no coinciden.";return;}
+  if(cd1.length<6){msg.textContent="Mínimo 6 caracteres.";return;}
+  try{
+    const data=await loadData();allUsers=data.users;
+    const idx=allUsers.findIndex(x=>x.user===currentUser.user);
+    allUsers[idx].claveDesbloqueo=cd1;
+    currentUser=allUsers[idx];
+    await saveData({...data,users:allUsers,clientes:data.clientes||[]});
+    document.getElementById("my-cd1").value="";document.getElementById("my-cd2").value="";
+    msg.style.color="var(--verde)";msg.textContent="✓ Clave de desbloqueo guardada.";
+    toast("Clave de desbloqueo actualizada ✓");
   }catch(e){msg.textContent="Error al guardar.";}
 }
 
@@ -3688,10 +3718,11 @@ async function verificarAuthSuper(){
   err.textContent="";
   try{
     const data = await loadData();
-    const admin = (data.users||[]).find(x=>x.user===u&&x.pass===p&&x.role==="admin"&&!x.blocked);
+    const admin = (data.users||[]).find(x=>x.user===u&&(x.claveDesbloqueo?x.claveDesbloqueo===p:x.pass===p)&&x.role==="admin"&&!x.blocked);
     if(!admin){err.textContent="Credenciales incorrectas.";return;}
+    const cb = _authSuperCallback; // guardamos el callback ANTES de cerrar el modal, que lo pone en null
     cerrarAuthSuper();
-    if(_authSuperCallback) _authSuperCallback();
+    if(cb) cb();
   }catch(e){err.textContent="Credenciales incorrectas.";}
 }
 
@@ -4611,9 +4642,9 @@ function generarContrato(c){
 <div id="modal-auth-super" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:600;align-items:center;justify-content:center">
   <div style="background:#FFF;border-radius:8px;padding:1.5rem;max-width:300px;width:90%">
     <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.3rem">Autorización requerida</div>
-    <div style="font-size:.88rem;color:var(--cafe);margin-bottom:.8rem">Ingresa la clave de un administrador para continuar.</div>
+    <div style="font-size:.88rem;color:var(--cafe);margin-bottom:.8rem">Ingresa el usuario y la clave de desbloqueo de un administrador para continuar.</div>
     <div class="fi"><label>Usuario admin</label><input type="text" id="auth-super-user" placeholder="usuario"></div>
-    <div class="fi"><label>Contraseña</label><input type="password" id="auth-super-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')verificarAuthSuper()"></div>
+    <div class="fi"><label>Clave de desbloqueo</label><input type="password" id="auth-super-pass" placeholder="••••••••" onkeydown="if(event.key==='Enter')verificarAuthSuper()"></div>
     <div id="auth-super-err" style="font-size:.74rem;color:var(--rojo);min-height:.9rem;margin-top:.3rem"></div>
     <div style="display:flex;gap:.6rem;margin-top:.8rem">
       <button class="btn-save" onclick="verificarAuthSuper()">✓ Autorizar</button>
