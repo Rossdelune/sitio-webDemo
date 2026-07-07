@@ -1065,7 +1065,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <button class="btn-new" onclick="goSec('inv-nuevo')">+ Agregar</button>
           </div>
         </div>
-        <input class="proceso-search" id="inv-search" placeholder="🔍 Buscar por modelo, color, categoría..." oninput="filtrarInventario(this.value)" style="width:100%;margin-bottom:.8rem">
         <div id="inv-lista">
           <p style="color:#AAA;font-size:.82rem;padding:.5rem">Cargando inventario...</p>
         </div>
@@ -1076,7 +1075,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <div class="section" id="sec-inv-buscar">
       <div class="sec-title">Buscar modelo</div>
       <div class="card" style="padding:.8rem 1rem">
-        <input class="proceso-search" id="inv-buscar-input" placeholder="🔍 Escribe el modelo o código (ej: WF2813)..." oninput="buscarModeloInventario(this.value)" style="width:100%;margin-bottom:.8rem" autocomplete="off">
+        <input class="proceso-search" id="inv-buscar-input" placeholder="🔍 Buscar por modelo, color o categoría..." oninput="buscarModeloInventario(this.value)" style="width:100%;margin-bottom:.8rem" autocomplete="off">
         <div id="inv-buscar-resultados">
           <p style="color:#AAA;font-size:.82rem;padding:.5rem">Empieza a escribir para ver coincidencias en vivo.</p>
         </div>
@@ -3719,7 +3718,11 @@ function buscarModeloInventario(q){
     return;
   }
   const inv = (window._invData||[]);
-  const coincidencias = inv.filter(a => (a.modelo||"").toLowerCase().trim().replace(/\s+/g," ").includes(txt));
+  const coincidencias = inv.filter(a =>
+    (a.modelo||"").toLowerCase().trim().replace(/\s+/g," ").includes(txt) ||
+    (a.categoria||"").toLowerCase().includes(txt) ||
+    (a.colorNombre||"").toLowerCase().includes(txt)
+  );
   if(!coincidencias.length){
     cont.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin coincidencias para "'+q+'".</p>';
     return;
@@ -3727,23 +3730,6 @@ function buscarModeloInventario(q){
   cont.innerHTML =
     '<p style="font-size:.72rem;color:var(--dorado-d);margin-bottom:.5rem">'+coincidencias.length+' resultado(s) encontrado(s):</p>' +
     coincidencias.map(a => buildInvCard(a)).join("");
-}
-
-function filtrarInventario(q){
-  const lista = document.getElementById("inv-lista");
-  if(!lista) return;
-  const txt = q.toLowerCase();
-  const inv = (window._invData||[]);
-  const filtrados = txt ? inv.filter(a =>
-    (a.modelo||"").toLowerCase().includes(txt) ||
-    (a.categoria||"").toLowerCase().includes(txt) ||
-    (a.colorNombre||"").toLowerCase().includes(txt)
-  ) : inv;
-  if(!filtrados.length){
-    lista.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin resultados.</p>';
-    return;
-  }
-  lista.innerHTML = filtrados.map(a => buildInvCard(a)).join("");
 }
 
 function buildInvCard(a){
