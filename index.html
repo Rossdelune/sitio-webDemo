@@ -750,6 +750,10 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <label>Cuenta destino (anticipo)</label>
           <select id="c-cuenta-anticipo"></select>
         </div>
+        <div class="fi" id="fi-ref-anticipo" style="display:none">
+          <label>Número de referencia (opcional)</label>
+          <input type="text" id="c-ref-anticipo" placeholder="Número de transferencia...">
+        </div>
         <div class="fi"><label>Observaciones / Requisiciones especiales</label><textarea id="c-obs" placeholder="Detalles especiales del pedido..."></textarea></div>
         <div class="fi">
           <label>Estatus</label>
@@ -1011,7 +1015,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div class="card" style="padding:.5rem">
           <div style="overflow-x:auto">
             <table class="tbl">
-              <thead><tr><th>#</th><th>Cliente</th><th>Método</th><th>Cuenta</th><th>Monto</th><th>Registró</th></tr></thead>
+              <thead><tr><th>#</th><th>Cliente</th><th>Método</th><th>Cuenta</th><th>Ref.</th><th>Monto</th><th>Registró</th></tr></thead>
               <tbody id="corte-tbody-anticipos"></tbody>
             </table>
           </div>
@@ -1299,15 +1303,23 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button class="btn-close" onclick="closeCuentaModal()">✕</button>
     <div class="badge" style="background:var(--morado)" id="cm-badge">Nueva cuenta</div>
     <div class="modal-title" id="cm-title">Cuenta</div>
-    <div class="field"><label>Nombre</label><input type="text" id="cu-nombre" placeholder="Ej: Transferencia cuenta 3"></div>
     <div class="field">
       <label>Tipo</label>
-      <select id="cu-tipo">
+      <select id="cu-tipo" onchange="toggleCuentaCampos()">
         <option value="efectivo">Efectivo</option>
         <option value="tarjeta">Tarjeta</option>
         <option value="transferencia" selected>Transferencia</option>
         <option value="otro">Otro</option>
       </select>
+    </div>
+    <div class="field" id="fi-cu-nombre"><label>Nombre</label><input type="text" id="cu-nombre" placeholder="Ej: Tarjeta"></div>
+    <div class="field" id="fi-cu-banco" style="display:none">
+      <label>Banco</label>
+      <input type="text" id="cu-banco" placeholder="Ej: BBVA, Banamex, HSBC...">
+    </div>
+    <div class="field" id="fi-cu-digitos" style="display:none">
+      <label>Últimos 4 dígitos</label>
+      <input type="text" id="cu-digitos" placeholder="0000" maxlength="4" inputmode="numeric">
     </div>
     <div class="msg-err" id="cm-msg"></div>
     <button class="btn-primary" onclick="saveCuenta()">Guardar</button>
@@ -1751,6 +1763,10 @@ function limpiarFormularioCliente(){
   if(cuentaAnticEl) cuentaAnticEl.value="";
   const fiCuentaAntic=document.getElementById("fi-cuenta-anticipo");
   if(fiCuentaAntic) fiCuentaAntic.style.display="none";
+  const refAnticEl=document.getElementById("c-ref-anticipo");
+  if(refAnticEl) refAnticEl.value="";
+  const fiRefAntic=document.getElementById("fi-ref-anticipo");
+  if(fiRefAntic) fiRefAntic.style.display="none";
   // Folio display
   const folioDisp=document.getElementById("c-folio-display");
   if(folioDisp) folioDisp.textContent="Se asignará al guardar";
@@ -1973,6 +1989,7 @@ async function saveCliente(){
     interes:"no",
     fpago:document.getElementById("c-fpago").value,
     cuentaAnticipoId:cuentaIdPorMetodo(document.getElementById("c-fpago").value, document.getElementById("c-cuenta-anticipo").value),
+    refAnticipo:document.getElementById("c-ref-anticipo").value.trim(),
     entrega:document.getElementById("c-entrega").value,
     observaciones:document.getElementById("c-obs").value.trim(),
     estatus:document.getElementById("c-estatus").value,
@@ -2064,7 +2081,9 @@ function abrirEditarCliente(id){
   // Mostrar campo cuenta si fpago es transferencia
   const esTransf = (c.fpago||"").toLowerCase()==="transferencia";
   document.getElementById("fi-edit-cuenta-anticipo").style.display = esTransf ? "block" : "none";
+  document.getElementById("fi-edit-ref-anticipo").style.display = esTransf ? "block" : "none";
   if(esTransf) poblarSelectCuentaTransferencia("edit-cuenta-anticipo", c.cuentaAnticipoId||"");
+  document.getElementById("edit-ref-anticipo").value = esTransf ? (c.refAnticipo||"") : "";
   document.getElementById("edit-sispago").value      = c.sispago||"En parcialidades";
   document.getElementById("edit-parcialidades").value= c.parcialidades||"30";
   document.getElementById("edit-fecha-limite").value = c.fechaLimite||"";
@@ -2265,6 +2284,7 @@ async function guardarEdicionCliente(){
       fechaAnticipo: original.fechaAnticipo || original.fecha,
       fpago:         document.getElementById("edit-fpago").value.trim(),
       cuentaAnticipoId: cuentaIdPorMetodo(document.getElementById("edit-fpago").value.trim(), document.getElementById("edit-cuenta-anticipo").value) || original.cuentaAnticipoId || null,
+      refAnticipo:   document.getElementById("edit-ref-anticipo").value.trim() || original.refAnticipo || "",
       sispago:       document.getElementById("edit-sispago").value,
       parcialidades: document.getElementById("edit-parcialidades").value||30,
       fechaLimite:   document.getElementById("edit-fecha-limite").value,
@@ -2680,6 +2700,7 @@ function renderCorteCaja(){
         nombre: c.nombre,
         metodo: c.fpago||"—",
         cuenta: nombreCuenta(c.cuentaAnticipoId),
+        ref: c.refAnticipo||"—",
         monto: Number(c.anticipo||0),
         registradoPor: c.creadoPor||"—"
       });
@@ -2745,6 +2766,7 @@ function renderCorteCaja(){
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
       <td style="font-size:.72rem;color:#AAA">${x.cuenta}</td>
+      <td style="font-size:.72rem;color:#AAA">${x.ref}</td>
       <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
     </tr>`).join("");
@@ -2820,15 +2842,17 @@ function toggleCuentaAnticipo(){
   const metodo = document.getElementById("c-fpago").value;
   const mostrar = metodo==="Transferencia";
   document.getElementById("fi-cuenta-anticipo").style.display = mostrar ? "block" : "none";
+  document.getElementById("fi-ref-anticipo").style.display = mostrar ? "block" : "none";
   if(mostrar) poblarSelectCuentaTransferencia("c-cuenta-anticipo");
-  else document.getElementById("c-cuenta-anticipo").innerHTML="";
+  else { document.getElementById("c-cuenta-anticipo").innerHTML=""; document.getElementById("c-ref-anticipo").value=""; }
 }
 function toggleEditCuentaAnticipo(){
   const metodo = document.getElementById("edit-fpago").value.trim().toLowerCase();
   const mostrar = metodo==="transferencia";
   document.getElementById("fi-edit-cuenta-anticipo").style.display = mostrar ? "block" : "none";
+  document.getElementById("fi-edit-ref-anticipo").style.display = mostrar ? "block" : "none";
   if(mostrar) poblarSelectCuentaTransferencia("edit-cuenta-anticipo");
-  else document.getElementById("edit-cuenta-anticipo").innerHTML="";
+  else { document.getElementById("edit-cuenta-anticipo").innerHTML=""; document.getElementById("edit-ref-anticipo").value=""; }
 }
 
 async function guardarAbono(){
@@ -3887,6 +3911,13 @@ function renderCuentasConfig(){
 }
 
 let editingCuenta = null;
+function toggleCuentaCampos(){
+  const tipo = document.getElementById("cu-tipo").value;
+  const esTransf = tipo==="transferencia";
+  document.getElementById("fi-cu-nombre").style.display = esTransf ? "none" : "block";
+  document.getElementById("fi-cu-banco").style.display   = esTransf ? "block" : "none";
+  document.getElementById("fi-cu-digitos").style.display = esTransf ? "block" : "none";
+}
 function openCuentaModal(id){
   editingCuenta = id;
   const badge = document.getElementById("cm-badge");
@@ -3895,13 +3926,18 @@ function openCuentaModal(id){
   if(id){
     const c = allCuentas.find(x=>x.id===id);
     badge.textContent="Editar cuenta"; title.textContent="Editar cuenta";
-    document.getElementById("cu-nombre").value = c?.nombre||"";
     document.getElementById("cu-tipo").value = c?.tipo||"transferencia";
+    document.getElementById("cu-nombre").value = c?.nombre||"";
+    document.getElementById("cu-banco").value = c?.banco||"";
+    document.getElementById("cu-digitos").value = c?.digitos||"";
   } else {
     badge.textContent="Nueva cuenta"; title.textContent="Cuenta";
-    document.getElementById("cu-nombre").value="";
     document.getElementById("cu-tipo").value="transferencia";
+    document.getElementById("cu-nombre").value="";
+    document.getElementById("cu-banco").value="";
+    document.getElementById("cu-digitos").value="";
   }
+  toggleCuentaCampos();
   document.getElementById("modal-cuenta").classList.add("open");
 }
 function closeCuentaModal(){
@@ -3909,11 +3945,20 @@ function closeCuentaModal(){
   editingCuenta = null;
 }
 async function saveCuenta(){
-  const nombre = document.getElementById("cu-nombre").value.trim();
   const tipo = document.getElementById("cu-tipo").value;
   const msg = document.getElementById("cm-msg");
   msg.textContent="";
-  if(!nombre){ msg.textContent="Escribe un nombre para la cuenta."; return; }
+  let nombre, banco="", digitos="";
+  if(tipo==="transferencia"){
+    banco = document.getElementById("cu-banco").value.trim();
+    digitos = document.getElementById("cu-digitos").value.trim();
+    if(!banco){ msg.textContent="Escribe el nombre del banco."; return; }
+    if(!/^\d{4}$/.test(digitos)){ msg.textContent="Los últimos dígitos deben ser exactamente 4 números."; return; }
+    nombre = `${banco} •••• ${digitos}`;
+  } else {
+    nombre = document.getElementById("cu-nombre").value.trim();
+    if(!nombre){ msg.textContent="Escribe un nombre para la cuenta."; return; }
+  }
   try{
     const data = await loadData();
     allCuentas = data.cuentas||cuentasDefault();
@@ -3921,10 +3966,10 @@ async function saveCuenta(){
     if(dup){ msg.textContent="Ya existe una cuenta con ese nombre."; return; }
     if(editingCuenta){
       const idx = allCuentas.findIndex(x=>x.id===editingCuenta);
-      if(idx>-1){ allCuentas[idx].nombre=nombre; allCuentas[idx].tipo=tipo; }
+      if(idx>-1){ allCuentas[idx].nombre=nombre; allCuentas[idx].tipo=tipo; allCuentas[idx].banco=banco; allCuentas[idx].digitos=digitos; }
     } else {
       const nuevoId = "cta_"+Date.now();
-      allCuentas.push({id:nuevoId, nombre, tipo, activa:true});
+      allCuentas.push({id:nuevoId, nombre, tipo, banco, digitos, activa:true});
     }
     await saveData({...data, cuentas:allCuentas, clientes:data.clientes||[]});
     closeCuentaModal();
@@ -5141,6 +5186,10 @@ function generarContrato(c){
       <div class="field" id="fi-edit-cuenta-anticipo" style="display:none">
         <label>Cuenta destino (anticipo)</label>
         <select id="edit-cuenta-anticipo"></select>
+      </div>
+      <div class="field" id="fi-edit-ref-anticipo" style="display:none">
+        <label>Número de referencia (opcional)</label>
+        <input type="text" id="edit-ref-anticipo" placeholder="Número de transferencia...">
       </div>
     </div>
 
