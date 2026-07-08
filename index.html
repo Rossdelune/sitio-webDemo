@@ -570,6 +570,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <button class="sub-item" onclick="goSec('pagos-historial')">📊 Historial</button>
         <button class="sub-item" onclick="goSec('corte-caja')">💰 Corte de caja</button>
         <button class="sub-item" onclick="goSec('pagos-cuentas')">🏦 Cuentas</button>
+        <button class="sub-item" onclick="goSec('pagos-ingresos')">📈 Ingresos</button>
         <button class="sub-item" onclick="abrirNotaSencilla()">🧾 Nota sencilla</button>
       </div>
     </div>
@@ -1065,6 +1066,24 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <thead><tr><th>Fecha</th><th>Cuenta</th><th>Categoría</th><th>Descripción</th><th>Monto</th><th>Registró</th><th></th></tr></thead>
             <tbody id="cuentas-tbody-salidas"><tr><td colspan="7" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr></tbody>
           </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── INGRESOS MENSUALES (gráfica) ── -->
+    <div class="section" id="sec-pagos-ingresos">
+      <div class="sec-title">Ingresos Mensuales</div>
+      <div class="card" style="padding:.8rem 1rem;margin-bottom:.6rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <label style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Año:</label>
+          <select id="ingresos-anio" onchange="renderIngresosMensuales()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)"></select>
+          <div style="font-size:.72rem;color:#AAA">Suma de anticipos + abonos recibidos cada mes.</div>
+        </div>
+      </div>
+      <div id="ingresos-total-card" style="margin-bottom:.6rem"></div>
+      <div class="card" style="padding:.8rem">
+        <div id="ingresos-chart-box" style="position:relative;width:100%">
+          <canvas id="ingresos-chart" style="width:100%;height:260px;display:block"></canvas>
         </div>
       </div>
     </div>
@@ -1784,6 +1803,7 @@ function goSec(id){
   if(id==="pagos-pendientes"){renderPagosPendientes();}
   if(id==="pagos-historial"){renderHistorialPagos();}
   if(id==="pagos-cuentas"){renderCuentasPagos();}
+  if(id==="pagos-ingresos"){initIngresosMensuales();}
   if(id==="corte-caja"){
     const hoy=fechaLocalISO();
     const inp=document.getElementById("corte-fecha");
@@ -3889,7 +3909,7 @@ async function eliminarSuministro(clienteId, idx_sumi){
 // ══ PERMISOS ══
 const SECCIONES_CTRL = [
   {id:"clientes",       label:"👗 Clientes",          subs:["nuevo-cliente","lista-clientes"]},
-  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas"]},
+  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas","pagos-ingresos"]},
   {id:"pedidos",        label:"📋 Pedidos",            subs:["todos-pedidos","entregas-fecha"]},
   {id:"progreso",       label:"📦 Progreso",           subs:["progreso-pedido","progreso-agenda","progreso-diseno","progreso-formato"]},
   {id:"inventario",     label:"🏷️ Inventario",         subs:["inv-qr","inv-buscar","inv-paquetes"]},
@@ -4217,6 +4237,113 @@ async function eliminarGasto(id){
     renderCuentasPagos();
   }catch(e){ toast("Error al eliminar","err"); }
 }
+
+// ══ INGRESOS MENSUALES (gráfica de barras) ══
+const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+
+async function initIngresosMensuales(){
+  const sel = document.getElementById("ingresos-anio");
+  let data;
+  try{ data = await loadData(); }catch(e){ return; }
+  allClientes = data.clientes||[];
+  const anioActual = new Date().getFullYear();
+  const anios = new Set([anioActual]);
+  allClientes.forEach(c=>{
+    const fa = (c.fechaAnticipo||c.fecha||"").slice(0,4);
+    if(fa) anios.add(parseInt(fa,10));
+    (c.pagos||[]).forEach(p=>{
+      const fp = (p.fecha||"").slice(0,4);
+      if(fp) anios.add(parseInt(fp,10));
+    });
+  });
+  const listaAnios = Array.from(anios).filter(a=>!isNaN(a)).sort((a,b)=>b-a);
+  sel.innerHTML = listaAnios.map(a=>`<option value="${a}">${a}</option>`).join("");
+  sel.value = anioActual;
+  renderIngresosMensuales();
+}
+
+function renderIngresosMensuales(){
+  const anio = document.getElementById("ingresos-anio").value;
+  const montosPorMes = new Array(12).fill(0);
+
+  allClientes.forEach(c=>{
+    const fa = c.fechaAnticipo||c.fecha||"";
+    if(fa.slice(0,4)===anio && Number(c.anticipo||0)>0){
+      const mes = parseInt(fa.slice(5,7),10)-1;
+      if(mes>=0 && mes<12) montosPorMes[mes] += Number(c.anticipo||0);
+    }
+    (c.pagos||[]).forEach(p=>{
+      const fp = p.fecha||"";
+      if(fp.slice(0,4)===anio && Number(p.monto||0)>0){
+        const mes = parseInt(fp.slice(5,7),10)-1;
+        if(mes>=0 && mes<12) montosPorMes[mes] += Number(p.monto||0);
+      }
+    });
+  });
+
+  const totalAnio = montosPorMes.reduce((s,m)=>s+m,0);
+  document.getElementById("ingresos-total-card").innerHTML = `
+    <div class="card" style="padding:.7rem .9rem;text-align:center">
+      <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Total recibido en ${anio}</div>
+      <div style="font-size:1.3rem;font-weight:700;color:var(--dorado-d)">$${totalAnio.toLocaleString("es-MX")}</div>
+    </div>`;
+
+  dibujarGraficaIngresos(montosPorMes);
+}
+
+function dibujarGraficaIngresos(montosPorMes){
+  const canvas = document.getElementById("ingresos-chart");
+  if(!canvas) return;
+  const dpr = window.devicePixelRatio||1;
+  const W = Math.max(canvas.parentElement.clientWidth, 280), H = 260;
+  canvas.style.width = W+"px"; canvas.style.height = H+"px";
+  canvas.width = W*dpr; canvas.height = H*dpr;
+  const ctx = canvas.getContext("2d");
+  ctx.scale(dpr,dpr);
+  ctx.clearRect(0,0,W,H);
+
+  const PL=56, PR=12, PT=16, PB=34, cW=W-PL-PR, cH=H-PT-PB;
+  const maxMonto = Math.max(...montosPorMes, 1);
+  const step = maxMonto/4;
+  const cy = v => PT+cH-(v/maxMonto)*cH;
+
+  // Líneas guía horizontales
+  for(let i=0;i<=4;i++){
+    const v = step*i, y = cy(v);
+    ctx.beginPath();
+    ctx.strokeStyle = i===0 ? "#E8DDD0" : "#F2ECE1";
+    ctx.lineWidth = i===0 ? 1 : 0.6;
+    ctx.moveTo(PL,y); ctx.lineTo(PL+cW,y); ctx.stroke();
+    ctx.fillStyle = "#AAA"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "right";
+    ctx.fillText("$"+Math.round(v).toLocaleString("es-MX"), PL-6, y+3);
+  }
+
+  // Barras
+  const barW = (cW/12)*0.6;
+  montosPorMes.forEach((monto,i)=>{
+    const slot = PL + (cW/12)*i + (cW/12-barW)/2;
+    const y = cy(monto);
+    const alto = PT+cH-y;
+    if(monto>0){
+      const grad = ctx.createLinearGradient(0,y,0,PT+cH);
+      grad.addColorStop(0,"#C9A84C"); grad.addColorStop(1,"#7A4F2A");
+      ctx.fillStyle = grad;
+      ctx.fillRect(slot, y, barW, alto);
+      ctx.fillStyle = "#7A4F2A"; ctx.font = "bold 9px Lato,sans-serif"; ctx.textAlign = "center";
+      ctx.fillText("$"+monto.toLocaleString("es-MX"), slot+barW/2, y-5);
+    }
+    ctx.fillStyle = "#3A2A1A"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "center";
+    ctx.fillText(MESES_CORTOS[i], slot+barW/2, H-10);
+  });
+
+  // Eje base
+  ctx.beginPath(); ctx.strokeStyle="#E8DDD0"; ctx.lineWidth=1;
+  ctx.moveTo(PL,PT+cH); ctx.lineTo(PL+cW,PT+cH); ctx.stroke();
+}
+window.addEventListener("resize", ()=>{
+  const sec = document.getElementById("sec-pagos-ingresos");
+  if(sec && sec.classList.contains("active")) setTimeout(renderIngresosMensuales,80);
+});
 
 // Verifica si el usuario actual (worker) tiene permiso para una sección
 function tienePermiso(secId){
