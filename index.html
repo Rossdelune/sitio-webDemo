@@ -571,7 +571,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <button class="sub-item" onclick="goSec('corte-caja')">💰 Corte de caja</button>
         <button class="sub-item" onclick="goSec('pagos-cuentas')">🏦 Cuentas</button>
         <button class="sub-item" onclick="goSec('pagos-ingresos')">📈 Ingresos</button>
-        <button class="sub-item" onclick="goSec('pagos-accesorios')">🎀 Accesorios</button>
         <button class="sub-item" onclick="abrirNotaSencilla()">🧾 Nota sencilla</button>
       </div>
     </div>
@@ -580,6 +579,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <button class="nav-btn" id="nb-pedidos" onclick="toggleNav('pedidos')">📋 Pedidos <span class="arrow">▾</span></button>
       <div class="subnav" id="sub-pedidos">
         <button class="sub-item" onclick="goSec('todos-pedidos')">📋 Todos los pedidos</button>
+        <button class="sub-item" onclick="goSec('pedidos-accesorios')">🎀 Accesorios</button>
         <button class="sub-item" onclick="goSec('entregas-fecha')">📅 Entregas por fecha</button>
       </div>
     </div>
@@ -876,6 +876,31 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
+    <!-- ── ACCESORIOS (PEDIDOS) ── -->
+    <div class="section" id="sec-pedidos-accesorios">
+      <div class="sec-title">Accesorios</div>
+      <p style="color:#AAA;font-size:.78rem;margin:-.4rem 0 .8rem">Pedidos de accesorios comprados en línea, ligados a un cliente o sueltos. Al marcar "En Tienda" el pedido sale de esta lista, igual que un vestido.</p>
+      <div class="card" style="padding:.5rem;">
+        <div class="hdr-row" style="padding:.8rem .6rem .4rem;">
+          <div class="card-title" style="margin:0">Pedidos activos</div>
+          <button class="btn-new" onclick="openAccesorioModal()">+ Registrar accesorio</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="tbl">
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Cliente</th><th>Estatus</th><th></th></tr></thead>
+            <tbody id="acc-pedidos-tbody"><tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="card" style="padding:.8rem 1rem;margin:1rem 0 .6rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <label style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Resumen del mes:</label>
+          <input type="month" id="acc-periodo" onchange="renderAccesorios()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)">
+        </div>
+      </div>
+      <div id="acc-resumen-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem;margin-bottom:.8rem"></div>
+    </div>
+
     <!-- ── ENTREGAS POR FECHA ── -->
     <div class="section" id="sec-entregas-fecha">
       <div class="sec-title">Entregas por Fecha</div>
@@ -1088,28 +1113,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
         <div id="ingresos-legend" style="display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
         <div id="ingresos-totales-mes" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
-      </div>
-    </div>
-
-    <!-- ── ACCESORIOS COMPRADOS/VENDIDOS ── -->
-    <div class="section" id="sec-pagos-accesorios">
-      <div class="sec-title">Accesorios</div>
-      <p style="color:#AAA;font-size:.78rem;margin:-.4rem 0 .8rem">Registro de accesorios y artículos comprados en línea para clientes o como venta suelta, para llevar el control de cuántos se mueven al mes.</p>
-      <div class="card" style="padding:.8rem 1rem;margin-bottom:.6rem">
-        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
-          <label style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Mes:</label>
-          <input type="month" id="acc-periodo" onchange="renderAccesorios()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)">
-          <button class="btn-new" onclick="openAccesorioModal()">+ Registrar accesorio</button>
-        </div>
-      </div>
-      <div id="acc-resumen-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem;margin-bottom:.8rem"></div>
-      <div class="card" style="padding:.5rem">
-        <div style="overflow-x:auto">
-          <table class="tbl">
-            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Cliente</th><th></th></tr></thead>
-            <tbody id="acc-tbody"><tr><td colspan="5" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -1582,9 +1585,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG JSONBin (DEMO) ══
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
+const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
@@ -1851,16 +1853,16 @@ function goSec(id){
   if(id==="permisos"){_permisosWorkerActual=null;renderPermisos();}
   if(id==="cuentas-config"){renderCuentasConfig();}
   if(id==="todos-pedidos"){renderPedidos();initFiltroEntregasAnio();}
+  if(id==="pedidos-accesorios"){
+    const pInp=document.getElementById("acc-periodo");
+    if(pInp && !pInp.value) pInp.value=fechaLocalISO().slice(0,7);
+    renderAccesorios();
+  }
   if(id==="entregas-fecha"){initFiltroEntregasAnio();}
   if(id==="pagos-pendientes"){renderPagosPendientes();}
   if(id==="pagos-historial"){renderHistorialPagos();}
   if(id==="pagos-cuentas"){renderCuentasPagos();}
   if(id==="pagos-ingresos"){initIngresosMensuales();}
-  if(id==="pagos-accesorios"){
-    const pInp=document.getElementById("acc-periodo");
-    if(pInp && !pInp.value) pInp.value=fechaLocalISO().slice(0,7);
-    renderAccesorios();
-  }
   if(id==="corte-caja"){
     const hoy=fechaLocalISO();
     const inp=document.getElementById("corte-fecha");
@@ -3970,8 +3972,8 @@ async function eliminarSuministro(clienteId, idx_sumi){
 // ══ PERMISOS ══
 const SECCIONES_CTRL = [
   {id:"clientes",       label:"👗 Clientes",          subs:["nuevo-cliente","lista-clientes"]},
-  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas","pagos-ingresos","pagos-accesorios"]},
-  {id:"pedidos",        label:"📋 Pedidos",            subs:["todos-pedidos","entregas-fecha"]},
+  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas","pagos-ingresos"]},
+  {id:"pedidos",        label:"📋 Pedidos",            subs:["todos-pedidos","entregas-fecha","pedidos-accesorios"]},
   {id:"progreso",       label:"📦 Progreso",           subs:["progreso-pedido","progreso-agenda","progreso-diseno","progreso-formato"]},
   {id:"inventario",     label:"🏷️ Inventario",         subs:["inv-qr","inv-buscar","inv-paquetes"]},
 ];
@@ -4342,6 +4344,7 @@ async function saveAccesorio(){
     allAccesorios.push({
       id:"acc_"+Date.now(), fecha, tipo, cantidad,
       clienteId: clienteId||null, clienteNombre: cliente ? cliente.nombre : "",
+      estatus:"Pedido Realizado",
       registradoPor: currentUser.user
     });
     await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
@@ -4360,20 +4363,61 @@ async function eliminarAccesorio(id){
     renderAccesorios();
   }catch(e){ toast("Error al eliminar","err"); }
 }
+function estatusClassAcc(e){
+  return e==="Entregado"?"s-entregado":e==="En Tienda"?"s-tienda":e==="En Compra"?"s-compra":e==="Recibido"?"s-recibido":"s-pedido";
+}
+async function cambiarEstatusAccesorio(id, nuevoEstatus){
+  try{
+    const data = await loadData();
+    allAccesorios = data.accesoriosComprados||[];
+    const idx = allAccesorios.findIndex(a=>a.id===id);
+    if(idx===-1) return;
+    allAccesorios[idx].estatus = nuevoEstatus;
+    allAccesorios[idx].editadoPor = currentUser.user;
+    allAccesorios[idx].editadoEn = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
+    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    toast("Estatus actualizado ✓");
+    renderAccesorios();
+  }catch(e){ toast("Error al actualizar estatus","err"); }
+}
 async function renderAccesorios(){
-  const tbody = document.getElementById("acc-tbody");
+  const tbodyPed = document.getElementById("acc-pedidos-tbody");
   const cardsEl = document.getElementById("acc-resumen-cards");
   const periodoInp = document.getElementById("acc-periodo");
   if(!periodoInp.value) periodoInp.value = fechaLocalISO().slice(0,7);
   const periodo = periodoInp.value; // "YYYY-MM"
-  tbody.innerHTML = '<tr><td colspan="5" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
+  tbodyPed.innerHTML = '<tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
   let data;
-  try{ data = await loadData(); }catch(e){ tbody.innerHTML='<tr><td colspan="5" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  try{ data = await loadData(); }catch(e){ tbodyPed.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
   allClientes = data.clientes||allClientes;
   allAccesorios = data.accesoriosComprados||[];
 
-  const delMes = allAccesorios.filter(a=>(a.fecha||"").slice(0,7)===periodo).slice().sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  // Tabla de pedidos activos — mismo criterio que "Todos los pedidos" de vestidos:
+  // solo se muestra mientras el estatus es "Pedido Realizado" o "En Compra".
+  // En cuanto pasa a "En Tienda" (o más adelante), desaparece de esta lista.
+  const activos = allAccesorios.filter(a=>!a.estatus||a.estatus==="Pedido Realizado"||a.estatus==="En Compra")
+    .slice().sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+  tbodyPed.innerHTML = activos.length ? activos.map(a=>{
+    const cls = estatusClassAcc(a.estatus);
+    return '<tr>'
+      + '<td style="font-size:.72rem;color:#AAA">'+(a.fecha||"—")+'</td>'
+      + '<td style="font-size:.78rem">'+a.tipo+'</td>'
+      + '<td style="font-size:.78rem;font-weight:600">'+Number(a.cantidad||0).toLocaleString("es-MX")+'</td>'
+      + '<td style="font-size:.76rem;color:#888">'+(a.clienteNombre||"Venta suelta")+'</td>'
+      + '<td><select class="status-badge '+cls+'" onchange="cambiarEstatusAccesorio(\''+a.id+'\',this.value)">'
+        + '<option value="Pedido Realizado" '+((!a.estatus||a.estatus==="Pedido Realizado")?"selected":"")+'>Pedido Realizado</option>'
+        + '<option value="En Compra" '+(a.estatus==="En Compra"?"selected":"")+'>En Compra</option>'
+        + '<option value="En Tienda" '+(a.estatus==="En Tienda"?"selected":"")+'>En Tienda</option>'
+        + '<option value="Recibido" '+(a.estatus==="Recibido"?"selected":"")+'>Recibido</option>'
+        + '<option value="Entregado" '+(a.estatus==="Entregado"?"selected":"")+'>Entregado</option>'
+      + '</select></td>'
+      + '<td><button class="ic-btn" onclick="eliminarAccesorio(\''+a.id+'\')" title="Eliminar">🗑️</button></td>'
+      + '</tr>';
+  }).join("") : '<tr><td colspan="6" style="color:#AAA;padding:1.5rem;text-align:center">Sin pedidos de accesorios activos 🎀</td></tr>';
 
+  // Resumen mensual por tipo — cuenta TODOS los registros del mes sin importar estatus,
+  // porque su propósito es planeación de capital, no seguimiento de entrega.
+  const delMes = allAccesorios.filter(a=>(a.fecha||"").slice(0,7)===periodo);
   const porTipo = {};
   delMes.forEach(a=>{ porTipo[a.tipo] = (porTipo[a.tipo]||0) + Number(a.cantidad||0); });
   const tipos = Object.keys(porTipo).sort((x,y)=>porTipo[y]-porTipo[x]);
@@ -4383,16 +4427,6 @@ async function renderAccesorios(){
     + '<div style="font-size:1.05rem;font-weight:700;color:var(--cafe)">'+porTipo[t].toLocaleString("es-MX")+'</div>'
     + '</div>'
   ).join("") : '<div style="color:#AAA;font-size:.8rem;padding:.4rem">Sin registros este mes.</div>';
-
-  tbody.innerHTML = delMes.length ? delMes.map(a=>
-    '<tr>'
-    + '<td style="font-size:.72rem;color:#AAA">'+(a.fecha||"—")+'</td>'
-    + '<td style="font-size:.78rem">'+a.tipo+'</td>'
-    + '<td style="font-size:.78rem;font-weight:600">'+Number(a.cantidad||0).toLocaleString("es-MX")+'</td>'
-    + '<td style="font-size:.76rem;color:#888">'+(a.clienteNombre||"—")+'</td>'
-    + '<td><button class="ic-btn" onclick="eliminarAccesorio(\''+a.id+'\')" title="Eliminar">🗑️</button></td>'
-    + '</tr>'
-  ).join("") : '<tr><td colspan="5" style="color:#AAA;padding:1rem;text-align:center">Sin registros para este mes.</td></tr>';
 }
 
 // ══ INGRESOS MENSUALES (gráfica de líneas por concepto/cuenta) ══
