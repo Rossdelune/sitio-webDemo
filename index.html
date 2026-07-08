@@ -1309,6 +1309,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
+
     <div class="section" id="sec-cuentas-config">
       <div class="sec-title">Cuentas</div>
       <div class="card">
@@ -1325,7 +1326,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
       </div>
     </div>
-
 
     <div class="section" id="sec-historial-accesos">
       <div class="sec-title">Historial de Accesos</div>
@@ -1530,12 +1530,13 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 </div>
 
 
-
 <script>
-// ══ CONFIG ══
+// ══ CONFIG JSONBin (DEMO) ══
+// Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
+// jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
+const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-const BIN_ID     = "6a2f95d2da38895dfec1c3bb";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -1638,6 +1639,15 @@ function nombreCuenta(cuentaId){
 // ══ LOGIN ══
 let loginRole="admin";
 let _desbloqueosTemp = new Set(); // secciones desbloqueadas por supervisor en esta sesión
+function showPass(){
+  const input = document.getElementById("inp-p");
+  if(input) input.type="text";
+}
+function hidePass(){
+  const input = document.getElementById("inp-p");
+  if(input) input.type="password";
+}
+
 function openLogin(role){
   loginRole=role;
   const a=role==="admin";
@@ -1648,15 +1658,6 @@ function openLogin(role){
   document.getElementById("ov-login").classList.add("open");
   setTimeout(()=>document.getElementById("inp-u").focus(),80);
 }
-function showPass(){
-  const input = document.getElementById("inp-p");
-  if(input) input.type="text";
-}
-function hidePass(){
-  const input = document.getElementById("inp-p");
-  if(input) input.type="password";
-}
-
 function closeLogin(){
   document.getElementById("ov-login").classList.remove("open");
   hidePass();
@@ -2112,17 +2113,6 @@ async function saveCliente(){
 // ══ EDITAR CLIENTE ══
 let _editClienteId = null;
 
-async function eliminarCliente(id, nombre){
-  if(!confirm(`¿Eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
-  try{
-    const data = await loadData();
-    allClientes = (data.clientes||[]).filter(c=>c.id!==id);
-    await saveData({...data, clientes:allClientes});
-    renderClientes();
-    toast("Cliente eliminado ✓");
-  }catch(e){toast("Error al eliminar","err");}
-}
-
 function abrirEditarCliente(id){
   const c = allClientes.find(x=>x.id===id);
   if(!c){toast("Cliente no encontrado","err");return;}
@@ -2501,6 +2491,17 @@ function limpiarBuscarCliente(){
   inp.focus();
 }
 function verCliente(id){toast("Expediente completo · próxima fase 🎀","ok");}
+
+async function eliminarCliente(id, nombre){
+  if(!confirm(`¿Eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try{
+    const data = await loadData();
+    allClientes = (data.clientes||[]).filter(c=>c.id!==id);
+    await saveData({...data, clientes:allClientes});
+    renderClientes();
+    toast("Cliente eliminado ✓");
+  }catch(e){toast("Error al eliminar","err");}
+}
 
 // ══ MI CUENTA ══
 async function saveMyAccount(){
@@ -4452,7 +4453,7 @@ async function verificarAuthSuper(){
     const cb = _authSuperCallback; // guardamos el callback ANTES de cerrar el modal, que lo pone en null
     cerrarAuthSuper();
     if(cb) cb();
-  }catch(e){err.textContent="Error de conexión.";}
+  }catch(e){err.textContent="Credenciales incorrectas.";}
 }
 
 // ══ INVENTARIO ══
@@ -5402,9 +5403,9 @@ function renderPedidos(){
   }).join("");
 }
 
+// Cambia el estatus desde la tabla de pedidos y refresca la lista
+// Si el nuevo estatus no es "Pedido Realizado", el cliente desaparece de la tabla
 async function cambiarEstatusPedido(clienteId, nuevoEstatus){
-  // Cambia el estatus desde la tabla de pedidos y refresca la lista
-  // Si el nuevo estatus no es "Pedido Realizado", el cliente desaparece de la tabla
   try{
     const data = await loadData();
     allClientes = data.clientes||[];
