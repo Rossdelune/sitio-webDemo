@@ -1018,7 +1018,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div class="card" style="padding:.5rem">
           <div style="overflow-x:auto">
             <table class="tbl">
-              <thead><tr><th>#</th><th>Cliente</th><th>Método</th><th>Ref.</th><th>Monto</th><th>Registró</th></tr></thead>
+              <thead><tr><th>#</th><th>Cliente</th><th>Método</th><th>Cuenta</th><th>Ref.</th><th>Monto</th><th>Registró</th></tr></thead>
               <tbody id="corte-tbody-abonos"></tbody>
             </table>
           </div>
@@ -1316,11 +1316,15 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     </div>
     <div class="field">
       <label>Método de pago</label>
-      <select id="abono-metodo">
+      <select id="abono-metodo" onchange="toggleAbonoCuenta()">
         <option>Efectivo</option>
         <option>Transferencia</option>
         <option>Tarjeta</option>
       </select>
+    </div>
+    <div class="field" id="fi-abono-cuenta" style="display:none">
+      <label>Cuenta destino</label>
+      <input type="text" id="abono-cuenta" placeholder="Ej. BBVA, Banamex, HSBC...">
     </div>
     <div class="field">
       <label>Referencia (opcional)</label>
@@ -2590,6 +2594,7 @@ function renderCorteCaja(){
           folio: c.folio||"—",
           nombre: c.nombre,
           metodo: p.metodo||"—",
+          cuenta: p.cuenta||"—",
           ref: p.ref||"—",
           monto: Number(p.monto||0),
           registradoPor: p.registradoPor||"—"
@@ -2652,6 +2657,7 @@ function renderCorteCaja(){
       <td style="font-size:.72rem;color:#AAA">${x.folio}</td>
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
+      <td style="font-size:.72rem;color:#AAA">${x.metodo==="Transferencia" ? (x.cuenta||"—") : "—"}</td>
       <td style="font-size:.72rem;color:#AAA">${x.ref}</td>
       <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
@@ -2695,12 +2701,23 @@ function toggleAbonoProroga(){
   const chk = document.getElementById("abono-proroga").checked;
   document.getElementById("fi-abono-proroga-dias").style.display = chk?"block":"none";
 }
-function closeAbonoModal(){document.getElementById("modal-abono").classList.remove("open");}
+function closeAbonoModal(){
+  document.getElementById("modal-abono").classList.remove("open");
+  document.getElementById("abono-cuenta").value="";
+  document.getElementById("fi-abono-cuenta").style.display="none";
+  document.getElementById("abono-metodo").value="Efectivo";
+}
+function toggleAbonoCuenta(){
+  const metodo = document.getElementById("abono-metodo").value;
+  document.getElementById("fi-abono-cuenta").style.display = metodo==="Transferencia" ? "block" : "none";
+  if(metodo!=="Transferencia") document.getElementById("abono-cuenta").value="";
+}
 
 async function guardarAbono(){
   const monto = parseFloat(document.getElementById("abono-monto").value);
   const fecha = document.getElementById("abono-fecha").value;
   const metodo = document.getElementById("abono-metodo").value;
+  const cuenta = document.getElementById("abono-cuenta").value.trim();
   const ref = document.getElementById("abono-ref").value.trim();
   const proroga = document.getElementById("abono-proroga").checked;
   const prorogaDias = parseInt(document.getElementById("abono-proroga-dias").value)||0;
@@ -2717,7 +2734,7 @@ async function guardarAbono(){
     if(!c.pagos) c.pagos=[];
     if(monto && monto>0){
       c.pagos.push({
-        monto, fecha, metodo, ref,
+        monto, fecha, metodo, cuenta, ref,
         registradoPor: currentUser.user,
         registradoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
       });
