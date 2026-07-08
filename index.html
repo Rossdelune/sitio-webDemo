@@ -1086,6 +1086,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <canvas id="ingresos-chart" style="width:100%;height:280px;display:block"></canvas>
         </div>
         <div id="ingresos-legend" style="display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
+        <div id="ingresos-totales-mes" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
       </div>
     </div>
 
@@ -4396,6 +4397,18 @@ function dibujarGraficaIngresos(series){
         ${serie.nombre} — <strong>$${totalSerie.toLocaleString("es-MX")}</strong>
       </div>`;
     }).join("");
+  }
+
+  const totalesEl = document.getElementById("ingresos-totales-mes");
+  if(totalesEl){
+    const totalesPorMes = MESES_CORTOS.map((_,i)=> series.reduce((s,serie)=>s+serie.montos[i],0));
+    totalesEl.innerHTML = '<div style="width:100%;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#AAA;margin-bottom:.3rem">Total recibido por mes (todas las cuentas)</div>'
+      + totalesPorMes.map((total,i)=>
+        `<div style="flex:1;min-width:70px;text-align:center;background:var(--bg);border-radius:4px;padding:.3rem .2rem">
+          <div style="font-size:.65rem;color:#AAA">${MESES_CORTOS[i]}</div>
+          <div style="font-size:.74rem;font-weight:700;color:${total>0?'var(--dorado-d)':'#CCC'}">$${total.toLocaleString("es-MX")}</div>
+        </div>`
+      ).join("");
   }
 }
 window.addEventListener("resize", ()=>{
