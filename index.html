@@ -2666,6 +2666,7 @@ function renderPagosPendientes(){
     sumaTotal += total;
     sumaPagado += pagado;
     sumaSaldo += saldoFinal>0 ? saldoFinal : 0;
+    if(saldoFinal<=0) return null; // ya liquidado — no debe aparecer en pendientes
 
     // Estado de vencimiento
     let estadoHTML = '';
@@ -2695,7 +2696,7 @@ function renderPagosPendientes(){
       <td>${estadoHTML}</td>
       <td><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Registrar abono">➕</button></td>
     </tr>`;
-  });
+  }).filter(Boolean);
   tbody.innerHTML = rows.length ? rows.join("") : '<tr><td colspan="8" style="color:#AAA;padding:1.5rem;text-align:center">Todos los pedidos están liquidados 🎀</td></tr>';
 
   // Resumen arriba
