@@ -445,8 +445,13 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 #modal-worker .modal{max-width:400px;}
 /* print */
 @media print{
-  body > *:not(.overlay){display:none!important;}
+  body > *:not(.overlay):not(#screen-panel){display:none!important;}
   .overlay{display:none!important;}
+  /* Corte de caja — impresión directa desde la sección */
+  #screen-panel{display:block!important;}
+  .topbar,#nav-bar,.no-print{display:none!important;}
+  .section{display:none!important;}
+  #sec-corte-caja.active{display:block!important;}
   #modal-qr-print.printing{
     display:flex!important;position:fixed!important;
     inset:0!important;background:#fff!important;z-index:9999!important;
