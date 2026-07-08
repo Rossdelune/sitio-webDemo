@@ -571,6 +571,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <button class="sub-item" onclick="goSec('corte-caja')">💰 Corte de caja</button>
         <button class="sub-item" onclick="goSec('pagos-cuentas')">🏦 Cuentas</button>
         <button class="sub-item" onclick="goSec('pagos-ingresos')">📈 Ingresos</button>
+        <button class="sub-item" onclick="goSec('pagos-accesorios')">🎀 Accesorios</button>
         <button class="sub-item" onclick="abrirNotaSencilla()">🧾 Nota sencilla</button>
       </div>
     </div>
@@ -1090,6 +1091,28 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
+    <!-- ── ACCESORIOS COMPRADOS/VENDIDOS ── -->
+    <div class="section" id="sec-pagos-accesorios">
+      <div class="sec-title">Accesorios</div>
+      <p style="color:#AAA;font-size:.78rem;margin:-.4rem 0 .8rem">Registro de accesorios y artículos comprados en línea para clientes o como venta suelta, para llevar el control de cuántos se mueven al mes.</p>
+      <div class="card" style="padding:.8rem 1rem;margin-bottom:.6rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <label style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Mes:</label>
+          <input type="month" id="acc-periodo" onchange="renderAccesorios()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)">
+          <button class="btn-new" onclick="openAccesorioModal()">+ Registrar accesorio</button>
+        </div>
+      </div>
+      <div id="acc-resumen-cards" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.5rem;margin-bottom:.8rem"></div>
+      <div class="card" style="padding:.5rem">
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr><th>Fecha</th><th>Tipo</th><th>Cantidad</th><th>Cliente</th><th></th></tr></thead>
+            <tbody id="acc-tbody"><tr><td colspan="5" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <!-- ── PROCESO DE ELABORACIÓN ── -->
     <!-- ── PROCESO PEDIDO (Ajustes) ── -->
     <div class="section" id="sec-progreso-pedido">
@@ -1410,6 +1433,31 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
   </div>
 </div>
 
+<!-- ── MODAL ACCESORIO ── -->
+<div class="overlay" id="modal-accesorio">
+  <div class="modal">
+    <button class="btn-close" onclick="closeAccesorioModal()">✕</button>
+    <div class="badge" style="background:var(--dorado-d)">Registrar accesorio</div>
+    <div class="modal-title">Accesorio comprado</div>
+    <div class="field"><label>Fecha</label><input type="date" id="ac-fecha"></div>
+    <div class="field">
+      <label>Tipo de artículo</label>
+      <select id="ac-tipo" onchange="toggleAccOtro()"></select>
+    </div>
+    <div class="field" id="ac-otro-wrap" style="display:none">
+      <label>Especifica el tipo</label>
+      <input type="text" id="ac-tipo-otro" placeholder="Tipo de artículo...">
+    </div>
+    <div class="field"><label>Cantidad</label><input type="number" id="ac-cantidad" placeholder="1" min="1" value="1"></div>
+    <div class="field">
+      <label>Cliente (opcional)</label>
+      <select id="ac-cliente"></select>
+    </div>
+    <div class="msg-err" id="am-msg"></div>
+    <button class="btn-primary" onclick="saveAccesorio()">Guardar</button>
+  </div>
+</div>
+
 <!-- MODAL ABONO -->
 <div class="overlay" id="modal-abono">
   <div class="modal">
@@ -1542,6 +1590,7 @@ const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
 let allGastos = [];
+let allAccesorios = [];
 let editingWorker = null;
 let selectedColor = "#C8A8D0";
 
@@ -1806,6 +1855,11 @@ function goSec(id){
   if(id==="pagos-historial"){renderHistorialPagos();}
   if(id==="pagos-cuentas"){renderCuentasPagos();}
   if(id==="pagos-ingresos"){initIngresosMensuales();}
+  if(id==="pagos-accesorios"){
+    const pInp=document.getElementById("acc-periodo");
+    if(pInp && !pInp.value) pInp.value=fechaLocalISO().slice(0,7);
+    renderAccesorios();
+  }
   if(id==="corte-caja"){
     const hoy=fechaLocalISO();
     const inp=document.getElementById("corte-fecha");
@@ -3911,7 +3965,7 @@ async function eliminarSuministro(clienteId, idx_sumi){
 // ══ PERMISOS ══
 const SECCIONES_CTRL = [
   {id:"clientes",       label:"👗 Clientes",          subs:["nuevo-cliente","lista-clientes"]},
-  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas","pagos-ingresos"]},
+  {id:"pagos",          label:"💳 Pagos",              subs:["pagos-pendientes","pagos-historial","nota-sencilla","corte-caja","pagos-cuentas","pagos-ingresos","pagos-accesorios"]},
   {id:"pedidos",        label:"📋 Pedidos",            subs:["todos-pedidos","entregas-fecha"]},
   {id:"progreso",       label:"📦 Progreso",           subs:["progreso-pedido","progreso-agenda","progreso-diseno","progreso-formato"]},
   {id:"inventario",     label:"🏷️ Inventario",         subs:["inv-qr","inv-buscar","inv-paquetes"]},
@@ -4238,6 +4292,102 @@ async function eliminarGasto(id){
     toast("Gasto eliminado ✓");
     renderCuentasPagos();
   }catch(e){ toast("Error al eliminar","err"); }
+}
+
+// ══ ACCESORIOS (registro de compras online por cliente / venta suelta) ══
+function openAccesorioModal(){
+  document.getElementById("am-msg").textContent="";
+  document.getElementById("ac-fecha").value = fechaLocalISO();
+  const selTipo = document.getElementById("ac-tipo");
+  selTipo.innerHTML = ADICIONALES.map(a=>'<option value="'+a+'">'+a+'</option>').join("") + '<option value="__otro">Otro...</option>';
+  selTipo.selectedIndex = 0;
+  document.getElementById("ac-otro-wrap").style.display="none";
+  document.getElementById("ac-tipo-otro").value="";
+  document.getElementById("ac-cantidad").value="1";
+  const selCli = document.getElementById("ac-cliente");
+  const opciones = (allClientes||[]).slice().sort((a,b)=>(a.folio||0)-(b.folio||0))
+    .map(c=>'<option value="'+c.id+'">#'+c.folio+' — '+c.nombre+'</option>').join("");
+  selCli.innerHTML = '<option value="">Sin cliente / venta suelta</option>' + opciones;
+  document.getElementById("modal-accesorio").classList.add("open");
+}
+function closeAccesorioModal(){
+  document.getElementById("modal-accesorio").classList.remove("open");
+}
+function toggleAccOtro(){
+  const v = document.getElementById("ac-tipo").value;
+  document.getElementById("ac-otro-wrap").style.display = (v==="__otro") ? "block" : "none";
+}
+async function saveAccesorio(){
+  const fecha = document.getElementById("ac-fecha").value;
+  const selTipo = document.getElementById("ac-tipo").value;
+  const tipoOtro = document.getElementById("ac-tipo-otro").value.trim();
+  const tipo = (selTipo==="__otro") ? tipoOtro : selTipo;
+  const cantidad = parseInt(document.getElementById("ac-cantidad").value,10);
+  const clienteId = document.getElementById("ac-cliente").value;
+  const msg = document.getElementById("am-msg");
+  msg.textContent="";
+  if(!fecha){ msg.textContent="Selecciona la fecha."; return; }
+  if(!tipo){ msg.textContent="Selecciona o escribe el tipo de artículo."; return; }
+  if(!cantidad || cantidad<=0){ msg.textContent="Escribe una cantidad válida."; return; }
+  try{
+    const data = await loadData();
+    allClientes = data.clientes||allClientes;
+    allAccesorios = data.accesoriosComprados||[];
+    const cliente = clienteId ? allClientes.find(c=>c.id===clienteId) : null;
+    allAccesorios.push({
+      id:"acc_"+Date.now(), fecha, tipo, cantidad,
+      clienteId: clienteId||null, clienteNombre: cliente ? cliente.nombre : "",
+      registradoPor: currentUser.user
+    });
+    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    closeAccesorioModal();
+    toast("Accesorio registrado ✓");
+    renderAccesorios();
+  }catch(e){ msg.textContent="Error al guardar."; }
+}
+async function eliminarAccesorio(id){
+  if(!confirm("¿Eliminar este registro? Esta acción no se puede deshacer.")) return;
+  try{
+    const data = await loadData();
+    allAccesorios = (data.accesoriosComprados||[]).filter(a=>a.id!==id);
+    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    toast("Registro eliminado ✓");
+    renderAccesorios();
+  }catch(e){ toast("Error al eliminar","err"); }
+}
+async function renderAccesorios(){
+  const tbody = document.getElementById("acc-tbody");
+  const cardsEl = document.getElementById("acc-resumen-cards");
+  const periodoInp = document.getElementById("acc-periodo");
+  if(!periodoInp.value) periodoInp.value = fechaLocalISO().slice(0,7);
+  const periodo = periodoInp.value; // "YYYY-MM"
+  tbody.innerHTML = '<tr><td colspan="5" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
+  let data;
+  try{ data = await loadData(); }catch(e){ tbody.innerHTML='<tr><td colspan="5" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  allClientes = data.clientes||allClientes;
+  allAccesorios = data.accesoriosComprados||[];
+
+  const delMes = allAccesorios.filter(a=>(a.fecha||"").slice(0,7)===periodo).slice().sort((a,b)=>(b.fecha||"").localeCompare(a.fecha||""));
+
+  const porTipo = {};
+  delMes.forEach(a=>{ porTipo[a.tipo] = (porTipo[a.tipo]||0) + Number(a.cantidad||0); });
+  const tipos = Object.keys(porTipo).sort((x,y)=>porTipo[y]-porTipo[x]);
+  cardsEl.innerHTML = tipos.length ? tipos.map(t=>
+    '<div class="card" style="padding:.6rem .7rem;text-align:center">'
+    + '<div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.06em;color:#AAA;margin-bottom:.25rem">'+t+'</div>'
+    + '<div style="font-size:1.05rem;font-weight:700;color:var(--cafe)">'+porTipo[t].toLocaleString("es-MX")+'</div>'
+    + '</div>'
+  ).join("") : '<div style="color:#AAA;font-size:.8rem;padding:.4rem">Sin registros este mes.</div>';
+
+  tbody.innerHTML = delMes.length ? delMes.map(a=>
+    '<tr>'
+    + '<td style="font-size:.72rem;color:#AAA">'+(a.fecha||"—")+'</td>'
+    + '<td style="font-size:.78rem">'+a.tipo+'</td>'
+    + '<td style="font-size:.78rem;font-weight:600">'+Number(a.cantidad||0).toLocaleString("es-MX")+'</td>'
+    + '<td style="font-size:.76rem;color:#888">'+(a.clienteNombre||"—")+'</td>'
+    + '<td><button class="ic-btn" onclick="eliminarAccesorio(\''+a.id+'\')" title="Eliminar">🗑️</button></td>'
+    + '</tr>'
+  ).join("") : '<tr><td colspan="5" style="color:#AAA;padding:1rem;text-align:center">Sin registros para este mes.</td></tr>';
 }
 
 // ══ INGRESOS MENSUALES (gráfica de líneas por concepto/cuenta) ══
