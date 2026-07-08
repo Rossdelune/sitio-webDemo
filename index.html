@@ -606,6 +606,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <button class="sub-item" onclick="goSec('mi-cuenta')" id="admin-sub-micuenta">👤 Mi cuenta</button>
         <button class="sub-item" onclick="goSec('colaboradores')" id="admin-sub-colab">👥 Colaboradores</button>
         <button class="sub-item" onclick="goSec('permisos')" id="admin-sub-permisos">🔐 Permisos</button>
+        <button class="sub-item" onclick="goSec('cuentas-config')" id="admin-sub-cuentas">🏦 Cuentas</button>
         <button class="sub-item" onclick="goSec('historial-accesos')" id="admin-sub-hist">🕐 Historial accesos</button>
       </div>
     </div>
@@ -1251,6 +1252,23 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     </div>
 
 
+    <div class="section" id="sec-cuentas-config">
+      <div class="sec-title">Cuentas</div>
+      <div class="card">
+        <p style="color:#AAA;font-size:.78rem;margin-bottom:.8rem">Estas son las cuentas donde se puede recibir dinero (Efectivo, Tarjeta, Transferencias). Se usan al registrar abonos y anticipos, y en el módulo de Cuentas dentro de Pagos.</p>
+        <div class="hdr-row">
+          <div class="card-title" style="margin:0">Catálogo de cuentas</div>
+          <button class="btn-new" onclick="openCuentaModal(null)">+ Nueva cuenta</button>
+        </div>
+        <div style="overflow-x:auto;">
+          <table class="w-tbl">
+            <thead><tr><th>Nombre</th><th>Tipo</th><th>Estado</th><th></th></tr></thead>
+            <tbody id="cuentas-config-tbody"><tr><td colspan="4" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
     <div class="section" id="sec-historial-accesos">
       <div class="sec-title">Historial de Accesos</div>
       <div class="card">
@@ -1272,6 +1290,27 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <div class="field"><label>Contraseña</label><input type="password" id="w-pass" placeholder="••••••••"></div>
     <div class="msg-err" id="wm-msg"></div>
     <button class="btn-primary" onclick="saveWorker()">Guardar</button>
+  </div>
+</div>
+
+<!-- ── MODAL CUENTA ── -->
+<div class="overlay" id="modal-cuenta">
+  <div class="modal">
+    <button class="btn-close" onclick="closeCuentaModal()">✕</button>
+    <div class="badge" style="background:var(--morado)" id="cm-badge">Nueva cuenta</div>
+    <div class="modal-title" id="cm-title">Cuenta</div>
+    <div class="field"><label>Nombre</label><input type="text" id="cu-nombre" placeholder="Ej: Transferencia cuenta 3"></div>
+    <div class="field">
+      <label>Tipo</label>
+      <select id="cu-tipo">
+        <option value="efectivo">Efectivo</option>
+        <option value="tarjeta">Tarjeta</option>
+        <option value="transferencia" selected>Transferencia</option>
+        <option value="otro">Otro</option>
+      </select>
+    </div>
+    <div class="msg-err" id="cm-msg"></div>
+    <button class="btn-primary" onclick="saveCuenta()">Guardar</button>
   </div>
 </div>
 
@@ -1405,6 +1444,7 @@ const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
+let allCuentas = [];
 let editingWorker = null;
 let selectedColor = "#C8A8D0";
 
@@ -1458,6 +1498,24 @@ function toast(msg,type="ok"){
   setTimeout(()=>t.classList.remove("show"),3000);
 }
 
+// ══ CUENTAS (catálogo) ══
+// Si el bin todavía no tiene data.cuentas, se crean las 4 cuentas base la primera vez.
+function cuentasDefault(){
+  return [
+    {id:"cta_efectivo", nombre:"Efectivo", tipo:"efectivo", activa:true},
+    {id:"cta_tarjeta",  nombre:"Tarjeta",  tipo:"tarjeta",  activa:true},
+    {id:"cta_transf1",  nombre:"Transferencia cuenta 1", tipo:"transferencia", activa:true},
+    {id:"cta_transf2",  nombre:"Transferencia cuenta 2", tipo:"transferencia", activa:true}
+  ];
+}
+async function asegurarCuentas(data){
+  if(data.cuentas && data.cuentas.length) return data.cuentas;
+  const cuentas = cuentasDefault();
+  data.cuentas = cuentas; // mutamos el objeto para que el saveData de doLogin no lo pise
+  await saveData({...data, clientes:data.clientes||[]});
+  return cuentas;
+}
+
 // ══ LOGIN ══
 let loginRole="admin";
 let _desbloqueosTemp = new Set(); // secciones desbloqueadas por supervisor en esta sesión
@@ -1494,6 +1552,7 @@ async function doLogin(){
   try{
     const data=await loadData();
     allUsers=data.users||[];allClientes=data.clientes||[];window._invData=data.inventario||[];
+    allCuentas=await asegurarCuentas(data);
     const match=allUsers.find(x=>x.user===u&&x.pass===p&&x.role===loginRole);
     if(!match){err.textContent="Usuario o contraseña incorrectos.";btn.innerHTML="Entrar";btn.disabled=false;return;}
     if(match.blocked){err.textContent="Cuenta bloqueada. Contacta al administrador.";btn.innerHTML="Entrar";btn.disabled=false;return;}
@@ -1514,6 +1573,7 @@ function enterPanel(){
   if(currentUser.role!=="admin"){
     document.getElementById("admin-sub-colab").style.display="none";
     document.getElementById("admin-sub-permisos").style.display="none";
+    document.getElementById("admin-sub-cuentas").style.display="none";
     document.getElementById("admin-sub-hist").style.display="none";
     document.getElementById("admin-sub-micuenta").style.display="none";
     // Mostrar botones del nav — bloqueados con 🔒, permitidos normal
@@ -1538,6 +1598,7 @@ function enterPanel(){
     // Admin: restaurar todo por si la sesión anterior en esta misma pestaña fue de un worker
     document.getElementById("admin-sub-colab").style.display="";
     document.getElementById("admin-sub-permisos").style.display="";
+    document.getElementById("admin-sub-cuentas").style.display="";
     document.getElementById("admin-sub-hist").style.display="";
     document.getElementById("admin-sub-micuenta").style.display="";
     SECCIONES_CTRL.forEach(s=>{
@@ -1618,6 +1679,7 @@ function goSec(id){
   if(id==="colaboradores")loadWorkers();
   if(id==="historial-accesos")loadHistorial();
   if(id==="permisos"){_permisosWorkerActual=null;renderPermisos();}
+  if(id==="cuentas-config"){renderCuentasConfig();}
   if(id==="todos-pedidos"){renderPedidos();initFiltroEntregasAnio();}
   if(id==="entregas-fecha"){initFiltroEntregasAnio();}
   if(id==="pagos-pendientes"){renderPagosPendientes();}
@@ -3770,6 +3832,86 @@ async function guardarPermisos(){
     msg.textContent="✓ Permisos guardados";
     toast("Permisos actualizados ✓");
   }catch(e){msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
+}
+
+// ══ CUENTAS — Config (crear/renombrar/desactivar) ══
+function renderCuentasConfig(){
+  const tbody = document.getElementById("cuentas-config-tbody");
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="4" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
+  loadData().then(data=>{
+    allCuentas = data.cuentas||[];
+    if(!allCuentas.length){ tbody.innerHTML='<tr><td colspan="4" style="color:#AAA;padding:1rem;">Sin cuentas registradas.</td></tr>'; return; }
+    const tipoLabel = {efectivo:"Efectivo", tarjeta:"Tarjeta", transferencia:"Transferencia", otro:"Otro"};
+    tbody.innerHTML = allCuentas.map(c=>`<tr>
+      <td style="font-size:.8rem">${c.nombre}</td>
+      <td style="font-size:.76rem;color:#888">${tipoLabel[c.tipo]||c.tipo}</td>
+      <td><span class="status-badge ${c.activa?'s-entregado':'s-pedido'}">${c.activa?'Activa':'Inactiva'}</span></td>
+      <td style="white-space:nowrap">
+        <button class="ic-btn" onclick="openCuentaModal('${c.id}')" title="Editar">✏️</button>
+        <button class="ic-btn" onclick="toggleCuentaActiva('${c.id}')" title="${c.activa?'Desactivar':'Activar'}">${c.activa?'🚫':'✅'}</button>
+      </td>
+    </tr>`).join("");
+  }).catch(()=>{ tbody.innerHTML='<tr><td colspan="4" style="color:var(--rojo);padding:1rem;">Error al cargar.</td></tr>'; });
+}
+
+let editingCuenta = null;
+function openCuentaModal(id){
+  editingCuenta = id;
+  const badge = document.getElementById("cm-badge");
+  const title = document.getElementById("cm-title");
+  document.getElementById("cm-msg").textContent="";
+  if(id){
+    const c = allCuentas.find(x=>x.id===id);
+    badge.textContent="Editar cuenta"; title.textContent="Editar cuenta";
+    document.getElementById("cu-nombre").value = c?.nombre||"";
+    document.getElementById("cu-tipo").value = c?.tipo||"transferencia";
+  } else {
+    badge.textContent="Nueva cuenta"; title.textContent="Cuenta";
+    document.getElementById("cu-nombre").value="";
+    document.getElementById("cu-tipo").value="transferencia";
+  }
+  document.getElementById("modal-cuenta").classList.add("open");
+}
+function closeCuentaModal(){
+  document.getElementById("modal-cuenta").classList.remove("open");
+  editingCuenta = null;
+}
+async function saveCuenta(){
+  const nombre = document.getElementById("cu-nombre").value.trim();
+  const tipo = document.getElementById("cu-tipo").value;
+  const msg = document.getElementById("cm-msg");
+  msg.textContent="";
+  if(!nombre){ msg.textContent="Escribe un nombre para la cuenta."; return; }
+  try{
+    const data = await loadData();
+    allCuentas = data.cuentas||cuentasDefault();
+    const dup = allCuentas.find(x=>x.nombre.toLowerCase()===nombre.toLowerCase() && x.id!==editingCuenta);
+    if(dup){ msg.textContent="Ya existe una cuenta con ese nombre."; return; }
+    if(editingCuenta){
+      const idx = allCuentas.findIndex(x=>x.id===editingCuenta);
+      if(idx>-1){ allCuentas[idx].nombre=nombre; allCuentas[idx].tipo=tipo; }
+    } else {
+      const nuevoId = "cta_"+Date.now();
+      allCuentas.push({id:nuevoId, nombre, tipo, activa:true});
+    }
+    await saveData({...data, cuentas:allCuentas, clientes:data.clientes||[]});
+    closeCuentaModal();
+    renderCuentasConfig();
+    toast("Cuenta guardada ✓");
+  }catch(e){ msg.textContent="Error al guardar."; }
+}
+async function toggleCuentaActiva(id){
+  try{
+    const data = await loadData();
+    allCuentas = data.cuentas||[];
+    const idx = allCuentas.findIndex(x=>x.id===id);
+    if(idx<0) return;
+    allCuentas[idx].activa = !allCuentas[idx].activa;
+    await saveData({...data, cuentas:allCuentas, clientes:data.clientes||[]});
+    renderCuentasConfig();
+    toast(allCuentas[idx].activa?"Cuenta activada ✓":"Cuenta desactivada ✓");
+  }catch(e){ toast("Error al actualizar","err"); }
 }
 
 // Verifica si el usuario actual (worker) tiene permiso para una sección
