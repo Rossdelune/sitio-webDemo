@@ -748,7 +748,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
         <div class="fi" id="fi-cuenta-anticipo" style="display:none">
           <label>Cuenta destino (anticipo)</label>
-          <input type="text" id="c-cuenta-anticipo" placeholder="Ej. BBVA, Banamex, HSBC...">
+          <select id="c-cuenta-anticipo"></select>
         </div>
         <div class="fi"><label>Observaciones / Requisiciones especiales</label><textarea id="c-obs" placeholder="Detalles especiales del pedido..."></textarea></div>
         <div class="fi">
@@ -1367,7 +1367,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     </div>
     <div class="field" id="fi-abono-cuenta" style="display:none">
       <label>Cuenta destino</label>
-      <input type="text" id="abono-cuenta" placeholder="Ej. BBVA, Banamex, HSBC...">
+      <select id="abono-cuenta"></select>
     </div>
     <div class="field">
       <label>Referencia (opcional)</label>
@@ -1514,6 +1514,29 @@ async function asegurarCuentas(data){
   data.cuentas = cuentas; // mutamos el objeto para que el saveData de doLogin no lo pise
   await saveData({...data, clientes:data.clientes||[]});
   return cuentas;
+}
+// Llena un <select> con las cuentas activas tipo "transferencia" (Transferencia cuenta 1, cuenta 2, etc.)
+function poblarSelectCuentaTransferencia(selectId, valorActual){
+  const sel = document.getElementById(selectId);
+  if(!sel) return;
+  const opciones = (allCuentas||[]).filter(c=>c.tipo==="transferencia" && c.activa);
+  sel.innerHTML = '<option value="">Seleccionar cuenta...</option>' + opciones.map(c=>`<option value="${c.id}">${c.nombre}</option>`).join("");
+  if(valorActual) sel.value = valorActual;
+}
+// Busca el id de la cuenta base (Efectivo o Tarjeta) según el método de pago
+function cuentaIdPorMetodo(metodo, cuentaSeleccionadaId){
+  if(!metodo) return null;
+  if(metodo==="Transferencia") return cuentaSeleccionadaId || null;
+  const tipo = metodo==="Efectivo" ? "efectivo" : metodo==="Tarjeta" ? "tarjeta" : null;
+  if(!tipo) return null;
+  const cuenta = (allCuentas||[]).find(c=>c.tipo===tipo && c.activa);
+  return cuenta ? cuenta.id : null;
+}
+// Resuelve un cuentaId a su nombre para mostrar en tablas/reportes
+function nombreCuenta(cuentaId){
+  if(!cuentaId) return "Sin cuenta asignada";
+  const c = (allCuentas||[]).find(x=>x.id===cuentaId);
+  return c ? c.nombre : "Sin cuenta asignada";
 }
 
 // ══ LOGIN ══
@@ -1949,7 +1972,7 @@ async function saveCliente(){
     prorogaDias:0,
     interes:"no",
     fpago:document.getElementById("c-fpago").value,
-    cuentaAnticipo:document.getElementById("c-cuenta-anticipo").value.trim(),
+    cuentaAnticipoId:cuentaIdPorMetodo(document.getElementById("c-fpago").value, document.getElementById("c-cuenta-anticipo").value),
     entrega:document.getElementById("c-entrega").value,
     observaciones:document.getElementById("c-obs").value.trim(),
     estatus:document.getElementById("c-estatus").value,
@@ -2041,7 +2064,7 @@ function abrirEditarCliente(id){
   // Mostrar campo cuenta si fpago es transferencia
   const esTransf = (c.fpago||"").toLowerCase()==="transferencia";
   document.getElementById("fi-edit-cuenta-anticipo").style.display = esTransf ? "block" : "none";
-  document.getElementById("edit-cuenta-anticipo").value = esTransf ? (c.cuentaAnticipo||"") : "";
+  if(esTransf) poblarSelectCuentaTransferencia("edit-cuenta-anticipo", c.cuentaAnticipoId||"");
   document.getElementById("edit-sispago").value      = c.sispago||"En parcialidades";
   document.getElementById("edit-parcialidades").value= c.parcialidades||"30";
   document.getElementById("edit-fecha-limite").value = c.fechaLimite||"";
@@ -2241,7 +2264,7 @@ async function guardarEdicionCliente(){
       anticipo:      document.getElementById("edit-anticipo").value,
       fechaAnticipo: original.fechaAnticipo || original.fecha,
       fpago:         document.getElementById("edit-fpago").value.trim(),
-      cuentaAnticipo: document.getElementById("edit-cuenta-anticipo").value.trim() || original.cuentaAnticipo || "",
+      cuentaAnticipoId: cuentaIdPorMetodo(document.getElementById("edit-fpago").value.trim(), document.getElementById("edit-cuenta-anticipo").value) || original.cuentaAnticipoId || null,
       sispago:       document.getElementById("edit-sispago").value,
       parcialidades: document.getElementById("edit-parcialidades").value||30,
       fechaLimite:   document.getElementById("edit-fecha-limite").value,
@@ -2656,7 +2679,7 @@ function renderCorteCaja(){
         folio: c.folio||"—",
         nombre: c.nombre,
         metodo: c.fpago||"—",
-        cuenta: c.cuentaAnticipo||"—",
+        cuenta: nombreCuenta(c.cuentaAnticipoId),
         monto: Number(c.anticipo||0),
         registradoPor: c.creadoPor||"—"
       });
@@ -2672,7 +2695,7 @@ function renderCorteCaja(){
           folio: c.folio||"—",
           nombre: c.nombre,
           metodo: p.metodo||"—",
-          cuenta: p.cuenta||"—",
+          cuenta: nombreCuenta(p.cuentaId),
           ref: p.ref||"—",
           monto: Number(p.monto||0),
           registradoPor: p.registradoPor||"—"
@@ -2721,7 +2744,7 @@ function renderCorteCaja(){
       <td style="font-size:.72rem;color:#AAA">${x.folio}</td>
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
-      <td style="font-size:.72rem;color:#AAA">${(x.metodo||"").toLowerCase()==="transferencia" ? (x.cuenta||"—") : "—"}</td>
+      <td style="font-size:.72rem;color:#AAA">${x.cuenta}</td>
       <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
     </tr>`).join("");
@@ -2736,7 +2759,7 @@ function renderCorteCaja(){
       <td style="font-size:.72rem;color:#AAA">${x.folio}</td>
       <td style="font-size:.8rem">${x.nombre}</td>
       <td style="font-size:.76rem">${x.metodo}</td>
-      <td style="font-size:.72rem;color:#AAA">${x.metodo==="Transferencia" ? (x.cuenta||"—") : "—"}</td>
+      <td style="font-size:.72rem;color:#AAA">${x.cuenta}</td>
       <td style="font-size:.72rem;color:#AAA">${x.ref}</td>
       <td style="font-size:.76rem;color:var(--verde);font-weight:600">$${x.monto.toLocaleString("es-MX")}</td>
       <td style="font-size:.72rem;color:#AAA">${x.registradoPor}</td>
@@ -2782,31 +2805,37 @@ function toggleAbonoProroga(){
 }
 function closeAbonoModal(){
   document.getElementById("modal-abono").classList.remove("open");
-  document.getElementById("abono-cuenta").value="";
+  document.getElementById("abono-cuenta").innerHTML="";
   document.getElementById("fi-abono-cuenta").style.display="none";
   document.getElementById("abono-metodo").value="Efectivo";
 }
 function toggleAbonoCuenta(){
   const metodo = document.getElementById("abono-metodo").value;
-  document.getElementById("fi-abono-cuenta").style.display = metodo==="Transferencia" ? "block" : "none";
-  if(metodo!=="Transferencia") document.getElementById("abono-cuenta").value="";
+  const mostrar = metodo==="Transferencia";
+  document.getElementById("fi-abono-cuenta").style.display = mostrar ? "block" : "none";
+  if(mostrar) poblarSelectCuentaTransferencia("abono-cuenta");
+  else document.getElementById("abono-cuenta").innerHTML="";
 }
 function toggleCuentaAnticipo(){
   const metodo = document.getElementById("c-fpago").value;
-  document.getElementById("fi-cuenta-anticipo").style.display = metodo==="Transferencia" ? "block" : "none";
-  if(metodo!=="Transferencia") document.getElementById("c-cuenta-anticipo").value="";
+  const mostrar = metodo==="Transferencia";
+  document.getElementById("fi-cuenta-anticipo").style.display = mostrar ? "block" : "none";
+  if(mostrar) poblarSelectCuentaTransferencia("c-cuenta-anticipo");
+  else document.getElementById("c-cuenta-anticipo").innerHTML="";
 }
 function toggleEditCuentaAnticipo(){
   const metodo = document.getElementById("edit-fpago").value.trim().toLowerCase();
-  document.getElementById("fi-edit-cuenta-anticipo").style.display = metodo==="transferencia" ? "block" : "none";
-  if(metodo!=="transferencia") document.getElementById("edit-cuenta-anticipo").value="";
+  const mostrar = metodo==="transferencia";
+  document.getElementById("fi-edit-cuenta-anticipo").style.display = mostrar ? "block" : "none";
+  if(mostrar) poblarSelectCuentaTransferencia("edit-cuenta-anticipo");
+  else document.getElementById("edit-cuenta-anticipo").innerHTML="";
 }
 
 async function guardarAbono(){
   const monto = parseFloat(document.getElementById("abono-monto").value);
   const fecha = document.getElementById("abono-fecha").value;
   const metodo = document.getElementById("abono-metodo").value;
-  const cuenta = document.getElementById("abono-cuenta").value.trim();
+  const cuentaSeleccionada = document.getElementById("abono-cuenta").value;
   const ref = document.getElementById("abono-ref").value.trim();
   const proroga = document.getElementById("abono-proroga").checked;
   const prorogaDias = parseInt(document.getElementById("abono-proroga-dias").value)||0;
@@ -2818,12 +2847,14 @@ async function guardarAbono(){
     const data = await loadData();
     allClientes = data.clientes||[];
     allUsers = data.users||[];
+    allCuentas = data.cuentas||allCuentas;
+    const cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
     const idx = allClientes.findIndex(x=>x.id===abonoClienteId);
     const c = allClientes[idx];
     if(!c.pagos) c.pagos=[];
     if(monto && monto>0){
       c.pagos.push({
-        monto, fecha, metodo, cuenta, ref,
+        monto, fecha, metodo, cuentaId, ref,
         registradoPor: currentUser.user,
         registradoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
       });
@@ -5099,10 +5130,17 @@ function generarContrato(c){
         <input type="number" id="edit-anticipo" placeholder="0" oninput="calcEditTotal()">
         <div style="font-size:.65rem;color:var(--rojo);margin-top:.2rem">⚠️ Si es un pago nuevo, regístralo como abono — no aquí.</div>
       </div>
-      <div class="field"><label>Forma de pago</label><input type="text" id="edit-fpago" placeholder="Efectivo, transferencia..." oninput="toggleEditCuentaAnticipo()"></div>
+      <div class="field"><label>Forma de pago</label>
+        <select id="edit-fpago" onchange="toggleEditCuentaAnticipo()">
+          <option value="">Seleccionar...</option>
+          <option>Efectivo</option>
+          <option>Transferencia</option>
+          <option>Tarjeta</option>
+        </select>
+      </div>
       <div class="field" id="fi-edit-cuenta-anticipo" style="display:none">
         <label>Cuenta destino (anticipo)</label>
-        <input type="text" id="edit-cuenta-anticipo" placeholder="Ej. BBVA, Banamex, HSBC...">
+        <select id="edit-cuenta-anticipo"></select>
       </div>
     </div>
 
