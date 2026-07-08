@@ -4346,7 +4346,6 @@ function dibujarGraficaIngresos(series){
   const PL=56, PR=12, PT=16, PB=34, cW=W-PL-PR, cH=H-PT-PB;
   const maxMonto = Math.max(1, ...series.flatMap(s=>s.montos));
   const step = maxMonto/4;
-  const cx = i => PL + (cW/11)*i;
   const cy = v => PT+cH-(v/maxMonto)*cH;
 
   // Líneas guía horizontales + eje Y
@@ -4359,27 +4358,24 @@ function dibujarGraficaIngresos(series){
     ctx.fillStyle = "#AAA"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "right";
     ctx.fillText("$"+Math.round(v).toLocaleString("es-MX"), PL-6, y+3);
   }
-  // Eje X — meses
+  // Eje X — meses (centrado sobre cada grupo de barras)
   for(let i=0;i<12;i++){
     ctx.fillStyle = "#3A2A1A"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(MESES_CORTOS[i], cx(i), H-10);
+    ctx.fillText(MESES_CORTOS[i], PL + (cW/12)*i + (cW/12)/2, H-10);
   }
 
-  // Una línea por concepto/cuenta
+  // Barras agrupadas por mes — una barra por concepto/cuenta
+  const grupoW = cW/12;
+  const barW = (grupoW*0.8) / Math.max(series.length,1);
   series.forEach((serie,idx)=>{
     const color = serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
-    ctx.beginPath();
-    ctx.strokeStyle = color; ctx.lineWidth = 2.2;
-    serie.montos.forEach((monto,i)=>{
-      const x = cx(i), y = cy(monto);
-      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
-    });
-    ctx.stroke();
     serie.montos.forEach((monto,i)=>{
       if(monto<=0) return;
-      const x = cx(i), y = cy(monto);
-      ctx.beginPath(); ctx.fillStyle = color;
-      ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+      const x = PL + grupoW*i + grupoW*0.1 + barW*idx;
+      const y = cy(monto);
+      const alto = PT+cH-y;
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, barW*0.9, alto);
     });
   });
 
