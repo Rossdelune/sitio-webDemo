@@ -1083,8 +1083,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <div id="ingresos-total-card" style="margin-bottom:.6rem"></div>
       <div class="card" style="padding:.8rem">
         <div id="ingresos-chart-box" style="position:relative;width:100%">
-          <canvas id="ingresos-chart" style="width:100%;height:260px;display:block"></canvas>
+          <canvas id="ingresos-chart" style="width:100%;height:280px;display:block"></canvas>
         </div>
+        <div id="ingresos-legend" style="display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
       </div>
     </div>
 
@@ -4238,14 +4239,16 @@ async function eliminarGasto(id){
   }catch(e){ toast("Error al eliminar","err"); }
 }
 
-// ══ INGRESOS MENSUALES (gráfica de barras) ══
+// ══ INGRESOS MENSUALES (gráfica de líneas por concepto/cuenta) ══
 const MESES_CORTOS = ["Ene","Feb","Mar","Abr","May","Jun","Jul","Ago","Sep","Oct","Nov","Dic"];
+const COLORES_LINEA = ["#7A4F2A","#27AE60","#2E86AB","#C0392B","#6B4F7A","#D68910","#16A085","#8E44AD"];
 
 async function initIngresosMensuales(){
   const sel = document.getElementById("ingresos-anio");
   let data;
   try{ data = await loadData(); }catch(e){ return; }
   allClientes = data.clientes||[];
+  allCuentas = data.cuentas||[];
   const anioActual = new Date().getFullYear();
   const anios = new Set([anioActual]);
   allClientes.forEach(c=>{
@@ -4262,40 +4265,58 @@ async function initIngresosMensuales(){
   renderIngresosMensuales();
 }
 
-function renderIngresosMensuales(){
-  const anio = document.getElementById("ingresos-anio").value;
-  const montosPorMes = new Array(12).fill(0);
+// Construye, para el año dado, una serie de 12 meses por cada concepto:
+// una por cada cuenta activa + "Sin cuenta asignada" (para no esconder dinero sin clasificar)
+function calcularSeriesPorConcepto(anio){
+  const conceptos = allCuentas.filter(c=>c.activa).map(c=>({id:c.id, nombre:c.nombre, montos:new Array(12).fill(0)}));
+  const sinAsignar = {id:null, nombre:"Sin cuenta asignada", montos:new Array(12).fill(0)};
+
+  function sumar(cuentaId, mes, monto){
+    if(mes<0||mes>11) return;
+    const serie = cuentaId ? conceptos.find(c=>c.id===cuentaId) : null;
+    if(serie) serie.montos[mes]+=monto;
+    else sinAsignar.montos[mes]+=monto;
+  }
 
   allClientes.forEach(c=>{
     const fa = c.fechaAnticipo||c.fecha||"";
     if(fa.slice(0,4)===anio && Number(c.anticipo||0)>0){
-      const mes = parseInt(fa.slice(5,7),10)-1;
-      if(mes>=0 && mes<12) montosPorMes[mes] += Number(c.anticipo||0);
+      sumar(c.cuentaAnticipoId||null, parseInt(fa.slice(5,7),10)-1, Number(c.anticipo||0));
     }
     (c.pagos||[]).forEach(p=>{
       const fp = p.fecha||"";
       if(fp.slice(0,4)===anio && Number(p.monto||0)>0){
-        const mes = parseInt(fp.slice(5,7),10)-1;
-        if(mes>=0 && mes<12) montosPorMes[mes] += Number(p.monto||0);
+        sumar(p.cuentaId||null, parseInt(fp.slice(5,7),10)-1, Number(p.monto||0));
       }
     });
   });
 
-  const totalAnio = montosPorMes.reduce((s,m)=>s+m,0);
+  const todas = [...conceptos];
+  const totalSinAsignar = sinAsignar.montos.reduce((s,m)=>s+m,0);
+  if(totalSinAsignar>0) todas.push(sinAsignar); // solo se muestra si realmente hay algo sin clasificar
+  return todas;
+}
+
+function renderIngresosMensuales(){
+  const anio = document.getElementById("ingresos-anio").value;
+  const series = calcularSeriesPorConcepto(anio);
+  const totalAnio = series.reduce((s,serie)=>s+serie.montos.reduce((a,m)=>a+m,0),0);
+
   document.getElementById("ingresos-total-card").innerHTML = `
     <div class="card" style="padding:.7rem .9rem;text-align:center">
       <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Total recibido en ${anio}</div>
       <div style="font-size:1.3rem;font-weight:700;color:var(--dorado-d)">$${totalAnio.toLocaleString("es-MX")}</div>
     </div>`;
 
-  dibujarGraficaIngresos(montosPorMes);
+  dibujarGraficaIngresos(series);
 }
 
-function dibujarGraficaIngresos(montosPorMes){
+function dibujarGraficaIngresos(series){
   const canvas = document.getElementById("ingresos-chart");
+  const legendEl = document.getElementById("ingresos-legend");
   if(!canvas) return;
   const dpr = window.devicePixelRatio||1;
-  const W = Math.max(canvas.parentElement.clientWidth, 280), H = 260;
+  const W = Math.max(canvas.parentElement.clientWidth, 280), H = 280;
   canvas.style.width = W+"px"; canvas.style.height = H+"px";
   canvas.width = W*dpr; canvas.height = H*dpr;
   const ctx = canvas.getContext("2d");
@@ -4303,11 +4324,12 @@ function dibujarGraficaIngresos(montosPorMes){
   ctx.clearRect(0,0,W,H);
 
   const PL=56, PR=12, PT=16, PB=34, cW=W-PL-PR, cH=H-PT-PB;
-  const maxMonto = Math.max(...montosPorMes, 1);
+  const maxMonto = Math.max(1, ...series.flatMap(s=>s.montos));
   const step = maxMonto/4;
+  const cx = i => PL + (cW/11)*i;
   const cy = v => PT+cH-(v/maxMonto)*cH;
 
-  // Líneas guía horizontales
+  // Líneas guía horizontales + eje Y
   for(let i=0;i<=4;i++){
     const v = step*i, y = cy(v);
     ctx.beginPath();
@@ -4317,28 +4339,45 @@ function dibujarGraficaIngresos(montosPorMes){
     ctx.fillStyle = "#AAA"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "right";
     ctx.fillText("$"+Math.round(v).toLocaleString("es-MX"), PL-6, y+3);
   }
-
-  // Barras
-  const barW = (cW/12)*0.6;
-  montosPorMes.forEach((monto,i)=>{
-    const slot = PL + (cW/12)*i + (cW/12-barW)/2;
-    const y = cy(monto);
-    const alto = PT+cH-y;
-    if(monto>0){
-      const grad = ctx.createLinearGradient(0,y,0,PT+cH);
-      grad.addColorStop(0,"#C9A84C"); grad.addColorStop(1,"#7A4F2A");
-      ctx.fillStyle = grad;
-      ctx.fillRect(slot, y, barW, alto);
-      ctx.fillStyle = "#7A4F2A"; ctx.font = "bold 9px Lato,sans-serif"; ctx.textAlign = "center";
-      ctx.fillText("$"+monto.toLocaleString("es-MX"), slot+barW/2, y-5);
-    }
+  // Eje X — meses
+  for(let i=0;i<12;i++){
     ctx.fillStyle = "#3A2A1A"; ctx.font = "10px Lato,sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(MESES_CORTOS[i], slot+barW/2, H-10);
+    ctx.fillText(MESES_CORTOS[i], cx(i), H-10);
+  }
+
+  // Una línea por concepto/cuenta
+  series.forEach((serie,idx)=>{
+    const color = serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
+    ctx.beginPath();
+    ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+    serie.montos.forEach((monto,i)=>{
+      const x = cx(i), y = cy(monto);
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+    serie.montos.forEach((monto,i)=>{
+      if(monto<=0) return;
+      const x = cx(i), y = cy(monto);
+      ctx.beginPath(); ctx.fillStyle = color;
+      ctx.arc(x,y,3,0,Math.PI*2); ctx.fill();
+    });
   });
 
   // Eje base
   ctx.beginPath(); ctx.strokeStyle="#E8DDD0"; ctx.lineWidth=1;
   ctx.moveTo(PL,PT+cH); ctx.lineTo(PL+cW,PT+cH); ctx.stroke();
+
+  // Leyenda (HTML, debajo de la gráfica)
+  if(legendEl){
+    legendEl.innerHTML = series.map((serie,idx)=>{
+      const color = serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
+      const totalSerie = serie.montos.reduce((s,m)=>s+m,0);
+      return `<div style="display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--texto)">
+        <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
+        ${serie.nombre} — <strong>$${totalSerie.toLocaleString("es-MX")}</strong>
+      </div>`;
+    }).join("");
+  }
 }
 window.addEventListener("resize", ()=>{
   const sec = document.getElementById("sec-pagos-ingresos");
