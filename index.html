@@ -4268,14 +4268,14 @@ async function initIngresosMensuales(){
 // Construye, para el año dado, una serie de 12 meses por cada concepto:
 // una por cada cuenta activa + "Sin cuenta asignada" (para no esconder dinero sin clasificar)
 function calcularSeriesPorConcepto(anio){
-  const conceptos = allCuentas.filter(c=>c.activa).map(c=>({id:c.id, nombre:c.nombre, montos:new Array(12).fill(0)}));
-  const sinAsignar = {id:null, nombre:"Sin cuenta asignada", montos:new Array(12).fill(0)};
-
+  // seriesMap agrupa por cuentaId real (incluye cuentas inactivas o ya eliminadas del catálogo);
+  // solo cae en "sin asignar" cuando el registro nunca tuvo cuentaId.
+  const seriesMap = {}; // key: cuentaId o "_sin_asignar" -> montos[12]
   function sumar(cuentaId, mes, monto){
     if(mes<0||mes>11) return;
-    const serie = cuentaId ? conceptos.find(c=>c.id===cuentaId) : null;
-    if(serie) serie.montos[mes]+=monto;
-    else sinAsignar.montos[mes]+=monto;
+    const key = cuentaId || "_sin_asignar";
+    if(!seriesMap[key]) seriesMap[key] = new Array(12).fill(0);
+    seriesMap[key][mes] += monto;
   }
 
   allClientes.forEach(c=>{
@@ -4291,9 +4291,28 @@ function calcularSeriesPorConcepto(anio){
     });
   });
 
-  const todas = [...conceptos];
-  const totalSinAsignar = sinAsignar.montos.reduce((s,m)=>s+m,0);
-  if(totalSinAsignar>0) todas.push(sinAsignar); // solo se muestra si realmente hay algo sin clasificar
+  const todas = [];
+  // 1) Cuentas activas del catálogo, en su orden — aunque tengan $0 este año, para que la leyenda sea estable
+  allCuentas.filter(c=>c.activa).forEach(c=>{
+    todas.push({id:c.id, nombre:c.nombre, montos: seriesMap[c.id] || new Array(12).fill(0)});
+    delete seriesMap[c.id];
+  });
+  // 2) Cuentas inactivas que sí tuvieron movimientos este año — conservan su nombre real, no se pierden
+  allCuentas.filter(c=>!c.activa).forEach(c=>{
+    if(seriesMap[c.id]){
+      todas.push({id:c.id, nombre:c.nombre+" (inactiva)", montos: seriesMap[c.id]});
+      delete seriesMap[c.id];
+    }
+  });
+  // 3) Cualquier cuentaId restante que ya no exista en el catálogo (cuenta eliminada)
+  Object.keys(seriesMap).forEach(key=>{
+    if(key==="_sin_asignar") return;
+    todas.push({id:key, nombre:"Cuenta eliminada", montos: seriesMap[key]});
+  });
+  // 4) Sin cuenta asignada — solo si realmente hay algo sin clasificar
+  if(seriesMap["_sin_asignar"] && seriesMap["_sin_asignar"].reduce((s,m)=>s+m,0)>0){
+    todas.push({id:null, nombre:"Sin cuenta asignada", montos: seriesMap["_sin_asignar"]});
+  }
   return todas;
 }
 
