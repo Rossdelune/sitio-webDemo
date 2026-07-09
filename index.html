@@ -1587,10 +1587,10 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
 
+
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-  
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -4721,7 +4721,8 @@ function buildMatrizModelo(modelo, articulos){
   const bloquesColor = colores.map(ck=>{
     const c = coloresMap[ck];
     const totalColor = c.articulos.reduce((s,a)=>s+(Number(a.cantidad)||0),0);
-    const foto = c.articulos.find(a=>a.tieneFoto) ? (localStorage.getItem("foto_"+c.articulos.find(a=>a.tieneFoto).id)||"") : "";
+    const artConFoto = c.articulos.find(a=>a.fotoUrl) || c.articulos.find(a=>a.tieneFoto);
+    const foto = artConFoto ? (artConFoto.fotoUrl || localStorage.getItem("foto_"+artConFoto.id) || "") : "";
     const fotoHTML = foto
       ? `<img src="${foto}" class="matriz-color-foto" style="object-fit:cover">`
       : `<div class="matriz-color-foto">👗</div>`;
@@ -4815,7 +4816,7 @@ function buscarModeloInventario(q){
 }
 
 function buildInvCard(a){
-  const foto = a.tieneFoto ? (localStorage.getItem("foto_"+a.id)||"") : "";
+  const foto = a.fotoUrl || (a.tieneFoto ? (localStorage.getItem("foto_"+a.id)||"") : "");
   const fotoHTML = foto
     ? `<img src="${foto}" style="width:64px;height:64px;object-fit:cover;border-radius:3px;border:1px solid #EEE;flex-shrink:0">`
     : `<div style="width:64px;height:64px;background:#F5F0E8;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:1.4rem;flex-shrink:0">👗</div>`;
@@ -4844,7 +4845,7 @@ function verQR(artId){
   const a = (window._invData||[]).find(x=>x.id===artId);
   if(!a) return;
   goSec("inv-detalle");
-  const fotoDetalle = a.tieneFoto ? (localStorage.getItem("foto_"+a.id)||"") : "";
+  const fotoDetalle = a.fotoUrl || (a.tieneFoto ? (localStorage.getItem("foto_"+a.id)||"") : "");
   const card = document.getElementById("inv-detalle-card");
   card.innerHTML = `
     <div style="display:flex;gap:1rem;flex-wrap:wrap;align-items:flex-start">
@@ -5020,6 +5021,24 @@ function previewInvFoto(input){
   reader.readAsDataURL(file);
 }
 
+// Sube una foto (base64) a Cloudinary y regresa la URL pública del archivo.
+// Usa un "unsigned upload preset" configurado en la cuenta de Cloudinary de Ross de Lune,
+// por lo que no requiere API secret expuesta en el código.
+const CLOUDINARY_CLOUD  = "fbuz82vi";
+const CLOUDINARY_PRESET = "archivo_rossdelune";
+async function subirFotoCloudinary(base64){
+  const formData = new FormData();
+  formData.append("file", base64);
+  formData.append("upload_preset", CLOUDINARY_PRESET);
+  const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: "POST",
+    body: formData
+  });
+  if(!resp.ok) throw new Error("Cloudinary respondió con error");
+  const data = await resp.json();
+  return data.secure_url;
+}
+
 function limpiarFormInv(){
   ["inv-categoria","inv-modelo","inv-talla","inv-color-nombre","inv-precio","inv-cantidad","inv-notas"].forEach(id=>{
     const el=document.getElementById(id);
@@ -5055,7 +5074,7 @@ function editarArticulo(artId){
   document.getElementById("inv-cantidad").value = a.cantidad||1;
   document.getElementById("inv-notas").value = a.notas||"";
   const fotoPreview = document.getElementById("inv-foto-preview");
-  const fotoActual = a.tieneFoto ? (localStorage.getItem("foto_"+artId)||"") : "";
+  const fotoActual = a.fotoUrl || (a.tieneFoto ? (localStorage.getItem("foto_"+artId)||"") : "");
   if(fotoActual){ fotoPreview.src=fotoActual; fotoPreview.style.display="block"; }
   const titulo=document.getElementById("inv-nuevo-title");
   if(titulo) titulo.textContent="Editar artículo";
@@ -5073,15 +5092,30 @@ async function guardarArticuloInv(){
 
   const editId = window._editandoArticuloId||null;
   const fotoPreview = document.getElementById("inv-foto-preview");
-  const fotoBase64 = fotoPreview.style.display!=="none" ? fotoPreview.src : "";
+  const fotoActual = fotoPreview.style.display!=="none" ? fotoPreview.src : "";
   const artId = editId || ("INV"+Date.now());
 
-  // Foto se guarda en localStorage (no en JSONBin para no exceder el límite de tamaño)
-  if(fotoBase64){
-    try{ localStorage.setItem("foto_"+artId, fotoBase64); }catch(e){}
-  } else if(editId){
-    try{ localStorage.removeItem("foto_"+artId); }catch(e){}
+  const btn = document.getElementById("btn-guardar-articulo");
+  const btnTextoOriginal = btn ? btn.textContent : "";
+  if(btn){ btn.disabled = true; btn.textContent = "⏳ Subiendo foto..."; }
+
+  // Si fotoActual empieza con "data:" es una foto nueva recién seleccionada → hay que subirla.
+  // Si ya es una URL (https://...) es una foto existente sin cambios → no se vuelve a subir.
+  let fotoUrl = "";
+  try{
+    if(fotoActual.startsWith("data:")){
+      fotoUrl = await subirFotoCloudinary(fotoActual);
+    } else if(fotoActual){
+      fotoUrl = fotoActual;
+    }
+  }catch(e){
+    console.error("Error subiendo foto a Cloudinary:", e);
+    msg.textContent = "No se pudo subir la foto. Verifica tu conexión e intenta de nuevo.";
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+    return;
   }
+
+  if(btn) btn.textContent = "💾 Guardando...";
 
   try{
     const data = await loadData();
@@ -5098,7 +5132,8 @@ async function guardarArticuloInv(){
       precio: document.getElementById("inv-precio").value,
       cantidad: document.getElementById("inv-cantidad").value||1,
       notas: document.getElementById("inv-notas").value.trim(),
-      tieneFoto: !!fotoBase64,
+      fotoUrl: fotoUrl,
+      tieneFoto: !!fotoUrl,
       creadoEn: existente ? existente.creadoEn : new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}),
       actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : undefined
     };
@@ -5115,6 +5150,9 @@ async function guardarArticuloInv(){
     toast(existente?"Artículo actualizado ✓":"Artículo guardado ✓");
     goSec("inv-qr");
   }catch(e){console.error("guardarArticuloInv error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
+  finally{
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+  }
 }
 
 async function eliminarArticulo(artId){
@@ -5124,6 +5162,7 @@ async function eliminarArticulo(artId){
     const inv = (data.inventario||[]).filter(x=>x.id!==artId);
     await saveData({...data, inventario:inv});
     window._invData = inv;
+    try{ localStorage.removeItem("foto_"+artId); }catch(e){}
     renderInventario();
     toast("Artículo eliminado ✓");
   }catch(e){toast("Error al eliminar","err");}
