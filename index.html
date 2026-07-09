@@ -1113,6 +1113,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
         <div id="ingresos-legend" style="display:flex;flex-wrap:wrap;gap:.7rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
         <div id="ingresos-totales-mes" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
+        <div id="ingresos-neta-mes" style="display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.6rem;padding-top:.6rem;border-top:1px solid var(--borde)"></div>
       </div>
     </div>
 
@@ -4540,13 +4541,13 @@ function renderIngresosMensuales(){
   // Se agregan Gastos y Ganancia neta como dos barras más por mes, junto a las de cada cuenta
   const seriesParaGrafica = [
     ...ingresoSeries,
-    {id:"_gastos", nombre:"Gastos", montos:gastosPorMes, colorFijo:"#C0392B"},
-    {id:"_neta",   nombre:"Ganancia neta", montos:netaPorMes, colorFijo:"#C9A84C"}
+    {id:"_gastos", nombre:"Gastos", montos:gastosPorMes, colorFijo:"#8B0000"},
+    {id:"_neta",   nombre:"Ganancia neta", montos:netaPorMes, colorFijo:"#1A1A1A"}
   ];
-  dibujarGraficaIngresos(seriesParaGrafica, totalesPorMesIngreso);
+  dibujarGraficaIngresos(seriesParaGrafica, totalesPorMesIngreso, netaPorMes);
 }
 
-function dibujarGraficaIngresos(series, totalesPorMesIngreso){
+function dibujarGraficaIngresos(series, totalesPorMesIngreso, netaPorMes){
   const canvas = document.getElementById("ingresos-chart");
   const legendEl = document.getElementById("ingresos-legend");
   if(!canvas) return;
@@ -4628,6 +4629,19 @@ function dibujarGraficaIngresos(series, totalesPorMesIngreso){
         `<div style="flex:1;min-width:70px;text-align:center;background:var(--bg);border-radius:4px;padding:.3rem .2rem">
           <div style="font-size:.65rem;color:#AAA">${MESES_CORTOS[i]}</div>
           <div style="font-size:.74rem;font-weight:700;color:${total>0?'var(--dorado-d)':'#CCC'}">$${total.toLocaleString("es-MX")}</div>
+        </div>`
+      ).join("");
+  }
+
+  // Fila de reporte — Ganancia neta por mes (ingresos - gastos), en rojo si ese mes fue pérdida
+  const netaEl = document.getElementById("ingresos-neta-mes");
+  if(netaEl && netaPorMes){
+    const totalNetaAnio = netaPorMes.reduce((a,b)=>a+b,0);
+    netaEl.innerHTML = `<div style="width:100%;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#AAA;margin-bottom:.3rem">Ganancia neta por mes (ingresos − gastos) · Total del año: <strong style="color:${totalNetaAnio>=0?'var(--verde)':'var(--rojo)'}">$${totalNetaAnio.toLocaleString("es-MX")}</strong></div>`
+      + netaPorMes.map((neta,i)=>
+        `<div style="flex:1;min-width:70px;text-align:center;background:var(--bg);border-radius:4px;padding:.3rem .2rem;border:1px solid ${neta<0?'var(--rojo)':'transparent'}">
+          <div style="font-size:.65rem;color:#AAA">${MESES_CORTOS[i]}</div>
+          <div style="font-size:.74rem;font-weight:700;color:${neta>0?'var(--verde)':neta<0?'var(--rojo)':'#CCC'}">${neta<0?'-':''}$${Math.abs(neta).toLocaleString("es-MX")}</div>
         </div>`
       ).join("");
   }
