@@ -1187,6 +1187,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <button class="btn-new" onclick="goSec('inv-nuevo')">+ Agregar</button>
           </div>
         </div>
+        <div id="inv-resumen-categorias" style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.8rem"></div>
         <div id="inv-lista">
           <p style="color:#AAA;font-size:.82rem;padding:.5rem">Cargando inventario...</p>
         </div>
@@ -1585,9 +1586,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG JSONBin (DEMO) ══
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
+const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
@@ -4649,9 +4649,29 @@ async function verificarAuthSuper(){
 // ══ INVENTARIO ══
 // QR: se usa la librería QRCode.js cargada desde CDN
 
+function renderResumenCategoriasInv(){
+  const cont = document.getElementById("inv-resumen-categorias");
+  if(!cont) return;
+  const inv = (window._invData||[]);
+  const categorias = [
+    {label:"Vestidos de novia", match:"vestido de novia"},
+    {label:"Vestidos de quinceañera", match:"vestido de quinceañera"}
+  ];
+  cont.innerHTML = categorias.map(cat=>{
+    const total = inv
+      .filter(a => (a.categoria||"").toLowerCase() === cat.match)
+      .reduce((s,a)=>s+(Number(a.cantidad)||0), 0);
+    return `<div style="background:#F5EDE0;border-radius:6px;padding:.55rem .9rem;flex:1;min-width:150px">
+      <div style="font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d)">${cat.label}</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.5rem;color:var(--texto);line-height:1.2">${total}</div>
+    </div>`;
+  }).join("");
+}
+
 function renderInventario(){
   const lista = document.getElementById("inv-lista");
   if(!lista) return;
+  renderResumenCategoriasInv();
   const inv = (window._invData||[]);
   if(!inv.length){
     lista.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin artículos registrados. Presiona "+ Agregar" para comenzar.</p>';
