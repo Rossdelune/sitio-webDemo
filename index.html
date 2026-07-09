@@ -1587,10 +1587,10 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
 // jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
 
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -4442,6 +4442,7 @@ async function initIngresosMensuales(){
   try{ data = await loadData(); }catch(e){ return; }
   allClientes = data.clientes||[];
   allCuentas = data.cuentas||[];
+  allGastos = data.gastos||[];
   const anioActual = new Date().getFullYear();
   const anios = new Set([anioActual]);
   allClientes.forEach(c=>{
@@ -4509,10 +4510,26 @@ function calcularSeriesPorConcepto(anio){
   return todas;
 }
 
+// Suma los gastos generales de la tienda por mes (independiente de por cuál cuenta salieron)
+function calcularGastosPorMes(anio){
+  const montos = new Array(12).fill(0);
+  (allGastos||[]).forEach(g=>{
+    const f = g.fecha||"";
+    if(f.slice(0,4)===anio && Number(g.monto||0)>0){
+      const mes = parseInt(f.slice(5,7),10)-1;
+      if(mes>=0 && mes<12) montos[mes] += Number(g.monto||0);
+    }
+  });
+  return montos;
+}
+
 function renderIngresosMensuales(){
   const anio = document.getElementById("ingresos-anio").value;
-  const series = calcularSeriesPorConcepto(anio);
-  const totalAnio = series.reduce((s,serie)=>s+serie.montos.reduce((a,m)=>a+m,0),0);
+  const ingresoSeries = calcularSeriesPorConcepto(anio);
+  const gastosPorMes = calcularGastosPorMes(anio);
+  const totalesPorMesIngreso = MESES_CORTOS.map((_,i)=> ingresoSeries.reduce((s,serie)=>s+serie.montos[i],0));
+  const netaPorMes = totalesPorMesIngreso.map((ing,i)=> ing - gastosPorMes[i]);
+  const totalAnio = totalesPorMesIngreso.reduce((a,b)=>a+b,0);
 
   document.getElementById("ingresos-total-card").innerHTML = `
     <div class="card" style="padding:.7rem .9rem;text-align:center">
@@ -4520,10 +4537,16 @@ function renderIngresosMensuales(){
       <div style="font-size:1.3rem;font-weight:700;color:var(--dorado-d)">$${totalAnio.toLocaleString("es-MX")}</div>
     </div>`;
 
-  dibujarGraficaIngresos(series);
+  // Se agregan Gastos y Ganancia neta como dos barras más por mes, junto a las de cada cuenta
+  const seriesParaGrafica = [
+    ...ingresoSeries,
+    {id:"_gastos", nombre:"Gastos", montos:gastosPorMes, colorFijo:"#C0392B"},
+    {id:"_neta",   nombre:"Ganancia neta", montos:netaPorMes, colorFijo:"#C9A84C"}
+  ];
+  dibujarGraficaIngresos(seriesParaGrafica, totalesPorMesIngreso);
 }
 
-function dibujarGraficaIngresos(series){
+function dibujarGraficaIngresos(series, totalesPorMesIngreso){
   const canvas = document.getElementById("ingresos-chart");
   const legendEl = document.getElementById("ingresos-legend");
   if(!canvas) return;
@@ -4539,6 +4562,10 @@ function dibujarGraficaIngresos(series){
   const maxMonto = Math.max(1, ...series.flatMap(s=>s.montos));
   const step = maxMonto/4;
   const cy = v => PT+cH-(v/maxMonto)*cH;
+  function colorDe(serie, idx){
+    if(serie.colorFijo) return serie.colorFijo;
+    return serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
+  }
 
   // Líneas guía horizontales + eje Y
   for(let i=0;i<=4;i++){
@@ -4556,18 +4583,23 @@ function dibujarGraficaIngresos(series){
     ctx.fillText(MESES_CORTOS[i], PL + (cW/12)*i + (cW/12)/2, H-10);
   }
 
-  // Barras agrupadas por mes — una barra por concepto/cuenta
+  // Barras agrupadas por mes — una barra por concepto/cuenta + Gastos + Ganancia neta
   const grupoW = cW/12;
   const barW = (grupoW*0.8) / Math.max(series.length,1);
+  const maxDip = PB-10; // espacio disponible bajo el eje para un mes con pérdida (ganancia neta negativa)
   series.forEach((serie,idx)=>{
-    const color = serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
+    const color = colorDe(serie, idx);
     serie.montos.forEach((monto,i)=>{
-      if(monto<=0) return;
+      if(monto===0) return;
       const x = PL + grupoW*i + grupoW*0.1 + barW*idx;
-      const y = cy(monto);
-      const alto = PT+cH-y;
       ctx.fillStyle = color;
-      ctx.fillRect(x, y, barW*0.9, alto);
+      if(monto>0){
+        const y = cy(monto);
+        ctx.fillRect(x, y, barW*0.9, PT+cH-y);
+      } else {
+        const dip = Math.min(maxDip, (Math.abs(monto)/maxMonto)*cH);
+        ctx.fillRect(x, PT+cH, barW*0.9, dip);
+      }
     });
   });
 
@@ -4578,7 +4610,7 @@ function dibujarGraficaIngresos(series){
   // Leyenda (HTML, debajo de la gráfica)
   if(legendEl){
     legendEl.innerHTML = series.map((serie,idx)=>{
-      const color = serie.id===null ? "#AAAAAA" : COLORES_LINEA[idx % COLORES_LINEA.length];
+      const color = colorDe(serie, idx);
       const totalSerie = serie.montos.reduce((s,m)=>s+m,0);
       return `<div style="display:flex;align-items:center;gap:.35rem;font-size:.72rem;color:var(--texto)">
         <span style="width:10px;height:10px;border-radius:50%;background:${color};display:inline-block"></span>
@@ -4587,9 +4619,10 @@ function dibujarGraficaIngresos(series){
     }).join("");
   }
 
+  // Fila de totales por mes — solo ingresos reales (no mezcla Gastos ni Ganancia neta, para no duplicar cifras)
   const totalesEl = document.getElementById("ingresos-totales-mes");
   if(totalesEl){
-    const totalesPorMes = MESES_CORTOS.map((_,i)=> series.reduce((s,serie)=>s+serie.montos[i],0));
+    const totalesPorMes = totalesPorMesIngreso || MESES_CORTOS.map((_,i)=> series.filter(s=>!s.colorFijo).reduce((s,serie)=>s+serie.montos[i],0));
     totalesEl.innerHTML = '<div style="width:100%;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:#AAA;margin-bottom:.3rem">Total recibido por mes (todas las cuentas)</div>'
       + totalesPorMes.map((total,i)=>
         `<div style="flex:1;min-width:70px;text-align:center;background:var(--bg);border-radius:4px;padding:.3rem .2rem">
