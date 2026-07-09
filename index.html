@@ -992,6 +992,12 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <div class="sec-title">Pagos Pendientes</div>
       <!-- Resumen general -->
       <div id="resumen-pendientes" style="display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin-bottom:.6rem"></div>
+      <div class="buscador-box">
+        <span class="buscador-ic">🔍</span>
+        <input type="text" id="buscar-pendiente" placeholder="Buscar por folio o nombre..." oninput="filtrarPendientes()">
+        <span class="buscador-clear" id="buscar-pendiente-clear" onclick="limpiarBuscarPendiente()">✕</span>
+      </div>
+      <div class="buscador-count" id="buscar-pendiente-count"></div>
       <div class="card" style="padding:.5rem">
         <div style="overflow-x:auto">
           <table class="tbl" id="tbl-pendientes">
@@ -1591,8 +1597,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-
-const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const BIN_URL    = `https://api.bin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
@@ -2741,7 +2746,7 @@ function renderPagosPendientes(){
   }
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   let sumaTotal=0, sumaPagado=0, sumaSaldo=0;
-  const rows = allClientes.filter(c=>c.estatus!=="Entregado" && !c.esNotaSencilla).map(c=>{
+  const pendientes = allClientes.filter(c=>c.estatus!=="Entregado" && !c.esNotaSencilla).map(c=>{
     const precio = Number(c.precio||0);
     const paquete = Number(c.precioPaquete||0);
     const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
@@ -2773,6 +2778,15 @@ function renderPagosPendientes(){
       estadoHTML = '<span class="status-badge s-pedido">Sin fecha</span>';
     }
 
+    return {c, total, pagado, saldoFinal, estadoHTML};
+  }).filter(Boolean);
+
+  // filtro de búsqueda (folio o nombre) — no afecta el resumen de arriba
+  const q = normTexto((document.getElementById("buscar-pendiente")?.value||"").trim());
+  const visibles = q ? pendientes.filter(r=>normTexto(r.c.nombre).includes(q) || normTexto(r.c.folio).includes(q)) : pendientes;
+
+  const rows = visibles.map(r=>{
+    const {c, total, pagado, saldoFinal, estadoHTML} = r;
     return `<tr>
       <td style="font-size:.72rem;color:#AAA">${c.folio||"—"}</td>
       <td><strong style="font-weight:400;font-size:.8rem">${c.nombre}</strong></td>
@@ -2783,10 +2797,20 @@ function renderPagosPendientes(){
       <td>${estadoHTML}</td>
       <td><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Registrar abono">➕</button></td>
     </tr>`;
-  }).filter(Boolean);
-  tbody.innerHTML = rows.length ? rows.join("") : '<tr><td colspan="8" style="color:#AAA;padding:1.5rem;text-align:center">Todos los pedidos están liquidados 🎀</td></tr>';
+  });
+  if(rows.length){
+    tbody.innerHTML = rows.join("");
+  } else if(q){
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#AAA;padding:1.5rem;text-align:center">No se encontraron pendientes con esa búsqueda.</td></tr>';
+  } else {
+    tbody.innerHTML = '<tr><td colspan="8" style="color:#AAA;padding:1.5rem;text-align:center">Todos los pedidos están liquidados 🎀</td></tr>';
+  }
 
-  // Resumen arriba
+  // contador de resultados
+  const cEl = document.getElementById("buscar-pendiente-count");
+  if(cEl) cEl.textContent = q ? `${visibles.length} de ${pendientes.length} pendientes` : "";
+
+  // Resumen arriba — SIEMPRE sobre el total de pendientes, sin importar la búsqueda
   const resumen = document.getElementById("resumen-pendientes");
   if(resumen){
     resumen.innerHTML = `
@@ -2803,6 +2827,18 @@ function renderPagosPendientes(){
         <div style="font-size:1.1rem;font-weight:700;color:var(--rojo)">$${sumaSaldo.toLocaleString("es-MX")}</div>
       </div>`;
   }
+}
+function filtrarPendientes(){
+  const inp=document.getElementById("buscar-pendiente");
+  document.getElementById("buscar-pendiente-clear").style.display=inp.value.trim()?"block":"none";
+  renderPagosPendientes();
+}
+function limpiarBuscarPendiente(){
+  const inp=document.getElementById("buscar-pendiente");
+  inp.value="";
+  document.getElementById("buscar-pendiente-clear").style.display="none";
+  renderPagosPendientes();
+  inp.focus();
 }
 
 function renderHistorialPagos(){
