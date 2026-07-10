@@ -774,12 +774,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <option value="no">❌ No autorizo</option>
           </select>
         </div>
-        <div class="fi" style="margin-top:.8rem">
-          <label style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.4rem">Contrato firmado (opcional)</label>
-          <input type="file" id="c-contrato-input" accept="image/*,.pdf" onchange="previewContratoCliente(this,'c')" style="display:none">
-          <button type="button" class="paso-btn" onclick="document.getElementById('c-contrato-input').click()">📄 Seleccionar contrato</button>
-          <div id="c-contrato-preview" style="display:none;margin-top:.5rem;font-size:.8rem;color:var(--dorado-d)"></div>
-        </div>
       </div>
 
       <div class="card" style="background:#FDF8F0;border:1px solid #E8D8B0;">
@@ -1600,7 +1594,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
@@ -1967,12 +1960,6 @@ function limpiarFormularioCliente(){
   // Mensaje de error limpio
   const msg=document.getElementById("cliente-msg");
   if(msg) msg.textContent="";
-  // Contrato firmado: limpiar selección previa
-  window._contratoNuevoBase64 = null;
-  const contratoInput = document.getElementById("c-contrato-input");
-  if(contratoInput) contratoInput.value = "";
-  const contratoPreview = document.getElementById("c-contrato-preview");
-  if(contratoPreview){ contratoPreview.style.display="none"; contratoPreview.textContent=""; }
 }
 
 // ══ COLOR PICKER ══
@@ -2177,22 +2164,6 @@ async function saveCliente(){
   try{
     if(btnSave){btnSave.disabled=true;btnSave.innerHTML='<span class="spinner"></span>Generando folio...';}
     await new Promise(r=>setTimeout(r,0));
-
-    let contratoUrl = "";
-    if(window._contratoNuevoBase64){
-      if(btnSave) btnSave.innerHTML='<span class="spinner"></span>Subiendo contrato...';
-      try{
-        contratoUrl = await subirDocumentoCloudinary(window._contratoNuevoBase64);
-      }catch(e){
-        console.error("Error subiendo contrato:", e);
-        msg.textContent = "No se pudo subir el contrato. Verifica tu conexión e intenta de nuevo.";
-        if(btnSave){btnSave.disabled=false;btnSave.innerHTML='💾 Guardar cliente';}
-        return;
-      }
-      if(btnSave) btnSave.innerHTML='<span class="spinner"></span>Guardando...';
-    }
-    cliente.contratoUrl = contratoUrl;
-
     const data=await loadData();
     allClientes=data.clientes||[];
     allUsers=data.users||[];
@@ -2203,7 +2174,6 @@ async function saveCliente(){
     allClientes.push(cliente);
     await saveData({...data,users:allUsers,clientes:allClientes});
     toast("Cliente guardado ✓ — Folio "+cliente.folio);
-    window._contratoNuevoBase64 = null;
     if(btnSave){btnSave.disabled=false;btnSave.innerHTML='💾 Guardar cliente';}
     renderClientes();
     goSec("lista-clientes");
@@ -2600,7 +2570,7 @@ function renderClientes(lista){
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}" style="white-space:nowrap">${c.estatus||"—"}</span></td>
       <td style="font-size:.72rem;max-width:160px">${adicionales}</td>
       <td style="font-size:.74rem">${c.elaboracion==="Sobre pedido"?"✓":"—"}</td>
-      <td style="white-space:nowrap">
+      <td style="white-space:normal;min-width:170px">
         ${c.esNotaSencilla?
           `<button class="ic-btn" onclick="verNotaSencillaGuardada('${c.id}')" title="Ver nota">🧾</button>
         ${currentUser.role==="admin"?`<button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar venta directa" style="color:var(--rojo)">🗑️</button>`:""}`
