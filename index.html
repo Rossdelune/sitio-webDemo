@@ -275,6 +275,10 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 .bb{background:#FDEDEC;color:var(--rojo);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .55rem;border-radius:12px;}
 .ba{background:#F0E6D3;color:var(--dorado-d);font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;padding:.2rem .55rem;border-radius:12px;}
 .ic-btn{background:none;border:none;cursor:pointer;font-size:.95rem;padding:.2rem .35rem;border-radius:3px;transition:background .15s;}
+.menu-toggle{font-size:1.15rem;font-weight:700;line-height:1;padding:.25rem .5rem;}
+.cliente-menu{position:absolute;right:0;top:100%;margin-top:2px;background:#fff;border:1px solid #E8DDD0;border-radius:5px;box-shadow:0 4px 16px rgba(0,0,0,.14);z-index:80;min-width:200px;padding:.3rem 0;}
+.cliente-menu button{display:block;width:100%;text-align:left;background:none;border:none;padding:.55rem .9rem;font-size:.8rem;cursor:pointer;font-family:'Lato',sans-serif;color:#333;white-space:nowrap;}
+.cliente-menu button:hover{background:#FDF8F0;}
 .ic-btn:hover{background:#F5F0E8;}
 .hdr-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:.9rem;}
 .btn-new{padding:.5rem 1.1rem;background:transparent;color:var(--dorado-d);border:1px solid var(--dorado);border-radius:2px;font-family:"Lato",sans-serif;font-size:.68rem;letter-spacing:.14em;text-transform:uppercase;cursor:pointer;transition:all .2s;}
@@ -2510,6 +2514,23 @@ async function guardarEdicionCliente(){
 }
 
 // ══ RENDER CLIENTES ══
+// ══ MENÚ DESPLEGABLE DE ACCIONES POR CLIENTE ══
+function toggleClienteMenu(id){
+  const menu = document.getElementById("menu-"+id);
+  if(!menu) return;
+  const yaAbierto = menu.style.display==="block";
+  cerrarClienteMenus();
+  if(!yaAbierto) menu.style.display="block";
+}
+function cerrarClienteMenus(){
+  document.querySelectorAll(".cliente-menu").forEach(m=>m.style.display="none");
+}
+document.addEventListener("click", function(e){
+  if(!e.target.closest(".menu-toggle") && !e.target.closest(".cliente-menu")){
+    cerrarClienteMenus();
+  }
+});
+
 function renderClientes(lista){
   const tbody=document.getElementById("clientes-tbody");
   const data=[...(lista||allClientes)].sort((a,b)=>{
@@ -2570,17 +2591,23 @@ function renderClientes(lista){
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}" style="white-space:nowrap">${c.estatus||"—"}</span></td>
       <td style="font-size:.72rem;max-width:160px">${adicionales}</td>
       <td style="font-size:.74rem">${c.elaboracion==="Sobre pedido"?"✓":"—"}</td>
-      <td style="white-space:normal;min-width:170px">
+      <td style="position:relative">
         ${c.esNotaSencilla?
-          `<button class="ic-btn" onclick="verNotaSencillaGuardada('${c.id}')" title="Ver nota">🧾</button>
-        ${currentUser.role==="admin"?`<button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar venta directa" style="color:var(--rojo)">🗑️</button>`:""}`
+          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}')" title="Más opciones">⋮</button>
+        <div class="cliente-menu" id="menu-${c.id}" style="display:none">
+          <button onclick="verNotaSencillaGuardada('${c.id}');cerrarClienteMenus()">🧾 Ver nota</button>
+          ${currentUser.role==="admin"?`<button onclick="eliminarCliente('${c.id}','${c.nombre}');cerrarClienteMenus()" style="color:var(--rojo)">🗑️ Eliminar venta directa</button>`:""}
+        </div>`
           :
-          `<button class="ic-btn" onclick="verPagos('${c.id}')" title="Pagos">💳</button>
-        <button class="ic-btn" onclick="verContrato('${c.id}')" title="Contrato">📄</button>
-        ${c.contratoUrl?`<button class="ic-btn" onclick="window.open('${c.contratoUrl}','_blank')" title="Ver documento firmado">📎</button>`:""}
-        <button class="ic-btn" onclick="verNotaVenta('${c.id}')" title="Nota de venta">🧾</button>
-        <button class="ic-btn" onclick="verFormatoEntrega('${c.id}')" title="Formato de entrega">📦</button>
-        ${currentUser.role==="admin"?`<button class="ic-btn" onclick="abrirEditarCliente('${c.id}')" title="Editar cliente">✏️</button><button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar cliente" style="color:var(--rojo)">🗑️</button>`:""}`
+          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}')" title="Más opciones">⋮</button>
+        <div class="cliente-menu" id="menu-${c.id}" style="display:none">
+          <button onclick="verPagos('${c.id}');cerrarClienteMenus()">💳 Pagos</button>
+          <button onclick="verContrato('${c.id}');cerrarClienteMenus()">📄 Contrato</button>
+          ${c.contratoUrl?`<button onclick="window.open('${c.contratoUrl}','_blank');cerrarClienteMenus()">📎 Documento firmado</button>`:""}
+          <button onclick="verNotaVenta('${c.id}');cerrarClienteMenus()">🧾 Nota de venta</button>
+          <button onclick="verFormatoEntrega('${c.id}');cerrarClienteMenus()">📦 Formato de entrega</button>
+          ${currentUser.role==="admin"?`<button onclick="abrirEditarCliente('${c.id}');cerrarClienteMenus()">✏️ Editar cliente</button><button onclick="eliminarCliente('${c.id}','${c.nombre}');cerrarClienteMenus()" style="color:var(--rojo)">🗑️ Eliminar cliente</button>`:""}
+        </div>`
         }
       </td>
     </tr>`;
