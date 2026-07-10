@@ -774,6 +774,12 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <option value="no">❌ No autorizo</option>
           </select>
         </div>
+        <div class="fi" style="margin-top:.8rem">
+          <label style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.4rem">Contrato firmado (opcional)</label>
+          <input type="file" id="c-contrato-input" accept="image/*,.pdf" onchange="previewContratoCliente(this,'c')" style="display:none">
+          <button type="button" class="paso-btn" onclick="document.getElementById('c-contrato-input').click()">📄 Seleccionar contrato</button>
+          <div id="c-contrato-preview" style="display:none;margin-top:.5rem;font-size:.8rem;color:var(--dorado-d)"></div>
+        </div>
       </div>
 
       <div class="card" style="background:#FDF8F0;border:1px solid #E8D8B0;">
@@ -1191,6 +1197,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="card-title" style="margin:0">Artículos en stock</div>
           <div style="display:flex;gap:.5rem">
             <button class="btn-sec" id="btn-lote-flotante" onclick="abrirModalLote()" style="display:none;font-size:.78rem">🖨️ Lote (<span id="lote-count">0</span>)</button>
+            <button class="btn-sec" id="btn-migrar-fotos" onclick="migrarFotosACloudinary()" style="display:none;font-size:.78rem">☁️ Migrar fotos</button>
+            <button class="btn-sec" id="btn-traspasar-fotos" onclick="traspasarFotosCuentaNueva()" style="display:none;font-size:.78rem">🔁 Traspasar a cuenta negocio</button>
             <button class="btn-new" onclick="goSec('inv-nuevo')">+ Agregar</button>
           </div>
         </div>
@@ -1343,7 +1351,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
-
     <div class="section" id="sec-cuentas-config">
       <div class="sec-title">Cuentas</div>
       <div class="card">
@@ -1360,6 +1367,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         </div>
       </div>
     </div>
+
 
     <div class="section" id="sec-historial-accesos">
       <div class="sec-title">Historial de Accesos</div>
@@ -1589,10 +1597,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 </div>
 
 
+
 <script>
-// ══ CONFIG JSONBin (DEMO) ══
-// Reemplaza los valores REEMPLAZAR_* con tu bin de demo real
-// jsonbin.io → tu bin → Master Key / Access Key (panel del bin)
+// ══ CONFIG ══
 
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
@@ -1700,15 +1707,6 @@ function nombreCuenta(cuentaId){
 // ══ LOGIN ══
 let loginRole="admin";
 let _desbloqueosTemp = new Set(); // secciones desbloqueadas por supervisor en esta sesión
-function showPass(){
-  const input = document.getElementById("inp-p");
-  if(input) input.type="text";
-}
-function hidePass(){
-  const input = document.getElementById("inp-p");
-  if(input) input.type="password";
-}
-
 function openLogin(role){
   loginRole=role;
   const a=role==="admin";
@@ -1719,6 +1717,15 @@ function openLogin(role){
   document.getElementById("ov-login").classList.add("open");
   setTimeout(()=>document.getElementById("inp-u").focus(),80);
 }
+function showPass(){
+  const input = document.getElementById("inp-p");
+  if(input) input.type="text";
+}
+function hidePass(){
+  const input = document.getElementById("inp-p");
+  if(input) input.type="password";
+}
+
 function closeLogin(){
   document.getElementById("ov-login").classList.remove("open");
   hidePass();
@@ -1757,6 +1764,10 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="none";
     document.getElementById("admin-sub-hist").style.display="none";
     document.getElementById("admin-sub-micuenta").style.display="none";
+    const btnMigrarFotos = document.getElementById("btn-migrar-fotos");
+    if(btnMigrarFotos) btnMigrarFotos.style.display="none";
+    const btnTraspasarFotos = document.getElementById("btn-traspasar-fotos");
+    if(btnTraspasarFotos) btnTraspasarFotos.style.display="none";
     // Mostrar botones del nav — bloqueados con 🔒, permitidos normal
     const permisos = currentUser.permisos||{};
     SECCIONES_CTRL.forEach(s=>{
@@ -1782,6 +1793,10 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="";
     document.getElementById("admin-sub-hist").style.display="";
     document.getElementById("admin-sub-micuenta").style.display="";
+    const btnMigrarFotos = document.getElementById("btn-migrar-fotos");
+    if(btnMigrarFotos) btnMigrarFotos.style.display="";
+    const btnTraspasarFotos = document.getElementById("btn-traspasar-fotos");
+    if(btnTraspasarFotos) btnTraspasarFotos.style.display="";
     SECCIONES_CTRL.forEach(s=>{
       const nb = document.getElementById("nb-"+s.id);
       if(!nb) return;
@@ -1952,6 +1967,12 @@ function limpiarFormularioCliente(){
   // Mensaje de error limpio
   const msg=document.getElementById("cliente-msg");
   if(msg) msg.textContent="";
+  // Contrato firmado: limpiar selección previa
+  window._contratoNuevoBase64 = null;
+  const contratoInput = document.getElementById("c-contrato-input");
+  if(contratoInput) contratoInput.value = "";
+  const contratoPreview = document.getElementById("c-contrato-preview");
+  if(contratoPreview){ contratoPreview.style.display="none"; contratoPreview.textContent=""; }
 }
 
 // ══ COLOR PICKER ══
@@ -2156,6 +2177,22 @@ async function saveCliente(){
   try{
     if(btnSave){btnSave.disabled=true;btnSave.innerHTML='<span class="spinner"></span>Generando folio...';}
     await new Promise(r=>setTimeout(r,0));
+
+    let contratoUrl = "";
+    if(window._contratoNuevoBase64){
+      if(btnSave) btnSave.innerHTML='<span class="spinner"></span>Subiendo contrato...';
+      try{
+        contratoUrl = await subirDocumentoCloudinary(window._contratoNuevoBase64);
+      }catch(e){
+        console.error("Error subiendo contrato:", e);
+        msg.textContent = "No se pudo subir el contrato. Verifica tu conexión e intenta de nuevo.";
+        if(btnSave){btnSave.disabled=false;btnSave.innerHTML='💾 Guardar cliente';}
+        return;
+      }
+      if(btnSave) btnSave.innerHTML='<span class="spinner"></span>Guardando...';
+    }
+    cliente.contratoUrl = contratoUrl;
+
     const data=await loadData();
     allClientes=data.clientes||[];
     allUsers=data.users||[];
@@ -2166,6 +2203,7 @@ async function saveCliente(){
     allClientes.push(cliente);
     await saveData({...data,users:allUsers,clientes:allClientes});
     toast("Cliente guardado ✓ — Folio "+cliente.folio);
+    window._contratoNuevoBase64 = null;
     if(btnSave){btnSave.disabled=false;btnSave.innerHTML='💾 Guardar cliente';}
     renderClientes();
     goSec("lista-clientes");
@@ -2178,6 +2216,17 @@ async function saveCliente(){
 
 // ══ EDITAR CLIENTE ══
 let _editClienteId = null;
+
+async function eliminarCliente(id, nombre){
+  if(!confirm(`¿Eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
+  try{
+    const data = await loadData();
+    allClientes = (data.clientes||[]).filter(c=>c.id!==id);
+    await saveData({...data, clientes:allClientes});
+    renderClientes();
+    toast("Cliente eliminado ✓");
+  }catch(e){toast("Error al eliminar","err");}
+}
 
 function abrirEditarCliente(id){
   const c = allClientes.find(x=>x.id===id);
@@ -2243,6 +2292,21 @@ function abrirEditarCliente(id){
   document.getElementById("edit-entrega").value      = c.entrega||"";
   document.getElementById("edit-estatus").value      = c.estatus||"Pedido Realizado";
   document.getElementById("edit-obs").value          = c.observaciones||"";
+
+  // Contrato firmado: limpiar selección previa y mostrar el guardado (si existe)
+  window._contratoEditBase64 = null;
+  const contratoInput = document.getElementById("edit-contrato-input");
+  if(contratoInput) contratoInput.value = "";
+  const contratoPreview = document.getElementById("edit-contrato-preview");
+  if(contratoPreview){
+    if(c.contratoUrl){
+      contratoPreview.style.display = "block";
+      contratoPreview.innerHTML = `📎 Ya hay un contrato guardado — <a href="${c.contratoUrl}" target="_blank" rel="noopener">ver documento</a>`;
+    } else {
+      contratoPreview.style.display = "none";
+      contratoPreview.innerHTML = "";
+    }
+  }
 
   initEditAdicionales(c.paquete?.adicionales||[]);
   editToggleParcialidades();
@@ -2407,8 +2471,23 @@ async function guardarEdicionCliente(){
     const original = allClientes[idx];
     const hex = document.getElementById("edit-color-picker").value;
 
+    let contratoUrl = original.contratoUrl || "";
+    if(window._contratoEditBase64){
+      btn.innerHTML='<span class="spinner"></span>Subiendo contrato...';
+      try{
+        contratoUrl = await subirDocumentoCloudinary(window._contratoEditBase64);
+      }catch(e){
+        console.error("Error subiendo contrato:", e);
+        msg.textContent = "No se pudo subir el contrato. Verifica tu conexión e intenta de nuevo.";
+        btn.disabled=false; btn.innerHTML='💾 Guardar cambios';
+        return;
+      }
+      btn.innerHTML='<span class="spinner"></span>Guardando...';
+    }
+
     allClientes[idx] = {
       ...original,
+      contratoUrl,
       folio:       folioNormalizado,
       fecha:       document.getElementById("edit-fecha").value,
       nombre,
@@ -2450,6 +2529,7 @@ async function guardarEdicionCliente(){
 
     await saveData({...data, clientes:allClientes});
     toast("Cliente actualizado ✓ — Folio "+folioNormalizado);
+    window._contratoEditBase64 = null;
     cerrarEditarCliente();
     renderClientes();
   }catch(e){
@@ -2527,6 +2607,7 @@ function renderClientes(lista){
           :
           `<button class="ic-btn" onclick="verPagos('${c.id}')" title="Pagos">💳</button>
         <button class="ic-btn" onclick="verContrato('${c.id}')" title="Contrato">📄</button>
+        ${c.contratoUrl?`<button class="ic-btn" onclick="window.open('${c.contratoUrl}','_blank')" title="Ver documento firmado">📎</button>`:""}
         <button class="ic-btn" onclick="verNotaVenta('${c.id}')" title="Nota de venta">🧾</button>
         <button class="ic-btn" onclick="verFormatoEntrega('${c.id}')" title="Formato de entrega">📦</button>
         ${currentUser.role==="admin"?`<button class="ic-btn" onclick="abrirEditarCliente('${c.id}')" title="Editar cliente">✏️</button><button class="ic-btn" onclick="eliminarCliente('${c.id}','${c.nombre}')" title="Eliminar cliente" style="color:var(--rojo)">🗑️</button>`:""}`
@@ -2561,17 +2642,6 @@ function limpiarBuscarCliente(){
   inp.focus();
 }
 function verCliente(id){toast("Expediente completo · próxima fase 🎀","ok");}
-
-async function eliminarCliente(id, nombre){
-  if(!confirm(`¿Eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
-  try{
-    const data = await loadData();
-    allClientes = (data.clientes||[]).filter(c=>c.id!==id);
-    await saveData({...data, clientes:allClientes});
-    renderClientes();
-    toast("Cliente eliminado ✓");
-  }catch(e){toast("Error al eliminar","err");}
-}
 
 // ══ MI CUENTA ══
 async function saveMyAccount(){
@@ -5107,13 +5177,50 @@ function previewInvFoto(input){
 // Sube una foto (base64) a Cloudinary y regresa la URL pública del archivo.
 // Usa un "unsigned upload preset" configurado en la cuenta de Cloudinary de Ross de Lune,
 // por lo que no requiere API secret expuesta en el código.
-const CLOUDINARY_CLOUD  = "fbuz82vi";
+const CLOUDINARY_CLOUD  = "htaj9bcz";
 const CLOUDINARY_PRESET = "archivo_rossdelune";
+// Cuenta anterior (personal), usada antes del traspaso a la cuenta del negocio.
+// Se conserva solo como referencia para identificar fotos aún no traspasadas.
+const CLOUDINARY_CLOUD_ANTERIOR = "fbuz82vi";
 async function subirFotoCloudinary(base64){
   const formData = new FormData();
   formData.append("file", base64);
   formData.append("upload_preset", CLOUDINARY_PRESET);
   const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/image/upload`, {
+    method: "POST",
+    body: formData
+  });
+  if(!resp.ok) throw new Error("Cloudinary respondió con error");
+  const data = await resp.json();
+  return data.secure_url;
+}
+
+// Vista previa del contrato firmado seleccionado (imagen o PDF), antes de subirlo.
+// prefix es "c" (Nuevo cliente) o "edit" (Editar cliente).
+function previewContratoCliente(input, prefix){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    if(prefix==="c") window._contratoNuevoBase64 = dataUrl;
+    else window._contratoEditBase64 = dataUrl;
+    const preview = document.getElementById(prefix+"-contrato-preview");
+    if(preview){
+      preview.style.display = "block";
+      preview.textContent = "📎 "+file.name+" listo para subir al guardar";
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+// Sube el contrato firmado (imagen o PDF) a Cloudinary. Usa /auto/upload en vez de
+// /image/upload porque detecta automáticamente si el archivo es imagen o PDF.
+async function subirDocumentoCloudinary(base64){
+  const formData = new FormData();
+  formData.append("file", base64);
+  formData.append("upload_preset", CLOUDINARY_PRESET);
+  const resp = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD}/auto/upload`, {
     method: "POST",
     body: formData
   });
@@ -5249,6 +5356,146 @@ async function eliminarArticulo(artId){
     renderInventario();
     toast("Artículo eliminado ✓");
   }catch(e){toast("Error al eliminar","err");}
+}
+
+// Migración única: sube a Cloudinary las fotos que quedaron guardadas en localStorage
+// de artículos creados antes de este cambio, y guarda la URL resultante en cada artículo.
+// Solo disponible para admins. Debe ejecutarse desde la misma computadora/navegador
+// donde se subieron esas fotos originalmente (ahí es donde vive el localStorage).
+async function migrarFotosACloudinary(){
+  const inv = window._invData||[];
+  const pendientes = inv.filter(a=>!a.fotoUrl && a.tieneFoto && localStorage.getItem("foto_"+a.id));
+  if(!pendientes.length){
+    toast("No hay fotos pendientes de migrar en este navegador ✓");
+    return;
+  }
+  if(!confirm(`Se encontraron ${pendientes.length} foto(s) guardadas en este navegador que aún no están en Cloudinary. ¿Migrarlas ahora? Puede tardar unos minutos — no cierres esta pestaña mientras termina.`)) return;
+
+  const btn = document.getElementById("btn-migrar-fotos");
+  const btnTextoOriginal = btn ? btn.textContent : "";
+  if(btn) btn.disabled = true;
+
+  let exitosas = 0, fallidas = 0;
+  let data, inventarioActualizado;
+  try{
+    data = await loadData();
+    inventarioActualizado = [...(data.inventario||[])];
+  }catch(e){
+    toast("No se pudo cargar el inventario. Verifica tu conexión.","err");
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+    return;
+  }
+
+  for(let i=0;i<pendientes.length;i++){
+    const art = pendientes[i];
+    if(btn) btn.textContent = `☁️ Migrando ${i+1}/${pendientes.length}...`;
+    const fotoBase64 = localStorage.getItem("foto_"+art.id);
+    if(!fotoBase64) continue;
+    try{
+      const url = await subirFotoCloudinary(fotoBase64);
+      const idx = inventarioActualizado.findIndex(x=>x.id===art.id);
+      if(idx!==-1) inventarioActualizado[idx] = {...inventarioActualizado[idx], fotoUrl:url};
+      try{ localStorage.removeItem("foto_"+art.id); }catch(e){}
+      exitosas++;
+    }catch(e){
+      console.error("Error migrando foto de "+art.id+":", e);
+      fallidas++;
+    }
+  }
+
+  try{
+    await saveData({...data, inventario:inventarioActualizado});
+    window._invData = inventarioActualizado;
+    renderInventario();
+  }catch(e){
+    console.error("Error guardando inventario migrado:", e);
+    toast("Fotos subidas a Cloudinary, pero hubo un error al guardar el inventario. Intenta de nuevo.","err");
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+    return;
+  }
+
+  if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+  toast(`Migración completa: ${exitosas} foto(s) migradas${fallidas?`, ${fallidas} con error`:""} ✓`);
+}
+
+// Descarga una imagen ya publicada (ej. una foto en Cloudinary) y la regresa como base64,
+// lista para volver a subirse con subirFotoCloudinary().
+async function descargarComoBase64(url){
+  const resp = await fetch(url);
+  if(!resp.ok) throw new Error("No se pudo descargar la foto original");
+  const blob = await resp.blob();
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+// Traspaso único: mueve las fotos que todavía viven en la cuenta anterior de Cloudinary
+// (fbuz82vi, personal) hacia la cuenta del negocio (CLOUDINARY_CLOUD actual), descargando
+// cada imagen y volviéndola a subir. Solo disponible para admins. Puede correr desde
+// cualquier computadora con internet — a diferencia de la migración de localStorage,
+// aquí las fotos ya viven en la nube, no en el navegador.
+async function traspasarFotosCuentaNueva(){
+  const inv = window._invData||[];
+  const pendientes = inv.filter(a=>a.fotoUrl && a.fotoUrl.includes(`/${CLOUDINARY_CLOUD_ANTERIOR}/`));
+  if(!pendientes.length){
+    toast("No hay fotos pendientes de traspasar a la cuenta del negocio ✓");
+    return;
+  }
+  if(!confirm(`Se encontraron ${pendientes.length} foto(s) todavía en la cuenta anterior. ¿Traspasarlas ahora a la cuenta del negocio? Puede tardar unos minutos — no cierres esta pestaña mientras termina.`)) return;
+
+  const btn = document.getElementById("btn-traspasar-fotos");
+  const btnTextoOriginal = btn ? btn.textContent : "";
+  if(btn) btn.disabled = true;
+
+  let exitosas = 0, fallidas = 0;
+  const idsActualizados = {}; // id del artículo → nueva URL en la cuenta del negocio
+
+  for(let i=0;i<pendientes.length;i++){
+    const art = pendientes[i];
+    if(btn) btn.textContent = `🔁 Traspasando ${i+1}/${pendientes.length}...`;
+    try{
+      const base64 = await descargarComoBase64(art.fotoUrl);
+      const nuevaUrl = await subirFotoCloudinary(base64);
+      idsActualizados[art.id] = nuevaUrl;
+      exitosas++;
+    }catch(e){
+      console.error("Error traspasando foto de "+art.id+":", e);
+      fallidas++;
+    }
+  }
+
+  // Antes de guardar, recargamos el inventario más reciente de JSONBin y solo
+  // actualizamos fotoUrl en los artículos traspasados — así no se pisa ningún
+  // cambio que alguien más haya hecho mientras corría el traspaso.
+  let data, inventarioActualizado;
+  try{
+    data = await loadData();
+    inventarioActualizado = (data.inventario||[]).map(a =>
+      idsActualizados[a.id] ? {...a, fotoUrl: idsActualizados[a.id]} : a
+    );
+  }catch(e){
+    console.error("Error recargando inventario tras traspaso:", e);
+    toast("Fotos traspasadas, pero no se pudo guardar el inventario actualizado. Verifica tu conexión e inténtalo de nuevo.","err");
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+    return;
+  }
+
+  try{
+    await saveData({...data, inventario:inventarioActualizado});
+    window._invData = inventarioActualizado;
+    renderInventario();
+  }catch(e){
+    console.error("Error guardando inventario tras traspaso:", e);
+    toast("Fotos traspasadas, pero hubo un error al guardar el inventario. Intenta de nuevo.","err");
+    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+    return;
+  }
+
+  if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
+  toast(`Traspaso completo: ${exitosas} foto(s) movidas a la cuenta del negocio${fallidas?`, ${fallidas} con error`:""} ✓`);
 }
 
 function buscarPorQR(){
@@ -5737,9 +5984,9 @@ function renderPedidos(){
   }).join("");
 }
 
-// Cambia el estatus desde la tabla de pedidos y refresca la lista
-// Si el nuevo estatus no es "Pedido Realizado", el cliente desaparece de la tabla
 async function cambiarEstatusPedido(clienteId, nuevoEstatus){
+  // Cambia el estatus desde la tabla de pedidos y refresca la lista
+  // Si el nuevo estatus no es "Pedido Realizado", el cliente desaparece de la tabla
   try{
     const data = await loadData();
     allClientes = data.clientes||[];
@@ -5980,6 +6227,12 @@ function generarContrato(c){
       </select>
     </div>
     <div class="field"><label>Observaciones</label><textarea id="edit-obs" rows="3" style="width:100%;border:1px solid #E8DDD0;border-radius:3px;padding:.5rem;font-family:'Lato',sans-serif;font-size:.82rem;resize:vertical;outline:none" placeholder="Notas adicionales..."></textarea></div>
+    <div class="field">
+      <label style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.4rem">Contrato firmado</label>
+      <input type="file" id="edit-contrato-input" accept="image/*,.pdf" onchange="previewContratoCliente(this,'edit')" style="display:none">
+      <button type="button" class="btn-sec" style="width:100%" onclick="document.getElementById('edit-contrato-input').click()">📄 Seleccionar / reemplazar contrato</button>
+      <div id="edit-contrato-preview" style="display:none;margin-top:.5rem;font-size:.8rem;color:var(--dorado-d)"></div>
+    </div>
     <div class="msg-err" id="edit-cliente-msg"></div>
     <button class="btn-primary" onclick="guardarEdicionCliente()" id="btn-guardar-edicion" style="width:100%;margin-top:.5rem">💾 Guardar cambios</button>
   </div>
