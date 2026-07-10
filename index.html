@@ -676,6 +676,43 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             </div>
           </div>
         </div>
+
+        <!-- Segundo vestido (caso aislado: doble boda, gemelas, etc.) -->
+        <div class="fi" id="fi-toggle-vestido2" style="margin-top:.4rem">
+          <button type="button" class="paso-btn" onclick="toggleSegundoVestido()" id="btn-toggle-vestido2">➕ Agregar segundo vestido</button>
+        </div>
+        <div id="bloque-vestido2" style="display:none;border:1px dashed var(--dorado-d);border-radius:6px;padding:.8rem;margin-top:.6rem;background:#FFFDF9">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+            <span style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d)">Segundo vestido</span>
+            <button type="button" onclick="toggleSegundoVestido()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.7rem;text-decoration:underline">✕ Quitar</button>
+          </div>
+          <div style="font-size:.7rem;color:var(--dorado-d);background:#F5EDE0;border-radius:4px;padding:.4rem .6rem;margin-bottom:.7rem">
+            ⚠️ El precio del vestido (más abajo) cubre <strong>ambos vestidos combinados</strong>, no cada uno por separado.
+          </div>
+          <div class="fg3">
+            <div class="fi"><label>Marca</label><input type="text" id="c-marca2" placeholder="Ej: Morilee, Jovani..."></div>
+            <div class="fi"><label>Modelo</label><input type="text" id="c-modelo2" placeholder="Ej: WF2813"></div>
+            <div class="fi"><label>Talla</label><input type="text" id="c-talla2" placeholder="Ej: Ch, M, 30..."></div>
+          </div>
+          <div class="fi" style="margin-bottom:.2rem">
+            <label>📷 Escanear artículo del inventario</label>
+            <div style="display:flex;gap:.5rem;align-items:center">
+              <input type="text" id="inv-scan-input2" placeholder="Apunta el escáner aquí y escanea el QR..." style="flex:1" onkeydown="if(event.key==='Enter'){buscarPorQR2();event.preventDefault();}">
+              <button class="paso-btn" onclick="buscarPorQR2()" style="white-space:nowrap">Buscar</button>
+            </div>
+            <div id="inv-scan-msg2" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
+          </div>
+          <div class="fi">
+            <label>Color del segundo vestido</label>
+            <div class="color-row">
+              <div class="color-preview" id="color-preview-box2" onclick="document.getElementById('color-picker2').click()" title="Seleccionar color"></div>
+              <input type="color" id="color-picker2" value="#C8A8D0" onchange="onColorChange2(this.value)">
+              <div class="fi color-name-inp" style="margin:0">
+                <input type="text" id="c-color-name2" placeholder="Nombre del color">
+              </div>
+            </div>
+          </div>
+        </div>
         <div class="fg2">
           <div class="fi"><label>Elaboración</label>
             <select id="c-elab">
@@ -1197,8 +1234,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="card-title" style="margin:0">Artículos en stock</div>
           <div style="display:flex;gap:.5rem">
             <button class="btn-sec" id="btn-lote-flotante" onclick="abrirModalLote()" style="display:none;font-size:.78rem">🖨️ Lote (<span id="lote-count">0</span>)</button>
-            <button class="btn-sec" id="btn-migrar-fotos" onclick="migrarFotosACloudinary()" style="display:none;font-size:.78rem">☁️ Migrar fotos</button>
-            <button class="btn-sec" id="btn-traspasar-fotos" onclick="traspasarFotosCuentaNueva()" style="display:none;font-size:.78rem">🔁 Traspasar a cuenta negocio</button>
             <button class="btn-new" onclick="goSec('inv-nuevo')">+ Agregar</button>
           </div>
         </div>
@@ -1602,7 +1637,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG ══
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
@@ -1762,10 +1798,6 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="none";
     document.getElementById("admin-sub-hist").style.display="none";
     document.getElementById("admin-sub-micuenta").style.display="none";
-    const btnMigrarFotos = document.getElementById("btn-migrar-fotos");
-    if(btnMigrarFotos) btnMigrarFotos.style.display="none";
-    const btnTraspasarFotos = document.getElementById("btn-traspasar-fotos");
-    if(btnTraspasarFotos) btnTraspasarFotos.style.display="none";
     // Mostrar botones del nav — bloqueados con 🔒, permitidos normal
     const permisos = currentUser.permisos||{};
     SECCIONES_CTRL.forEach(s=>{
@@ -1791,10 +1823,6 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="";
     document.getElementById("admin-sub-hist").style.display="";
     document.getElementById("admin-sub-micuenta").style.display="";
-    const btnMigrarFotos = document.getElementById("btn-migrar-fotos");
-    if(btnMigrarFotos) btnMigrarFotos.style.display="";
-    const btnTraspasarFotos = document.getElementById("btn-traspasar-fotos");
-    if(btnTraspasarFotos) btnTraspasarFotos.style.display="";
     SECCIONES_CTRL.forEach(s=>{
       const nb = document.getElementById("nb-"+s.id);
       if(!nb) return;
@@ -1962,6 +1990,9 @@ function limpiarFormularioCliente(){
   const scanInput=document.getElementById("inv-scan-input");
   if(scanInput) scanInput.value="";
   window._qrArticuloActual=null;
+  // Segundo vestido: colapsar y limpiar por completo
+  const bloqueV2=document.getElementById("bloque-vestido2");
+  if(bloqueV2 && bloqueV2.style.display!=="none") toggleSegundoVestido();
   // Mensaje de error limpio
   const msg=document.getElementById("cliente-msg");
   if(msg) msg.textContent="";
@@ -1977,6 +2008,66 @@ function onColorChange(val){
   document.getElementById("color-preview-box").style.background=val;
 }
 function onColorNameInput(val){}
+function onColorChange2(val){
+  const box=document.getElementById("color-preview-box2");
+  if(box) box.style.background=val;
+}
+
+function toggleSegundoVestido(){
+  const bloque = document.getElementById("bloque-vestido2");
+  const btn = document.getElementById("btn-toggle-vestido2");
+  const abrir = bloque.style.display==="none";
+  bloque.style.display = abrir ? "block" : "none";
+  if(!abrir){
+    // Al quitar el segundo vestido, limpiar sus campos y su vínculo
+    ["c-marca2","c-modelo2","c-talla2","c-color-name2","inv-scan-input2"].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.value="";
+    });
+    document.getElementById("color-picker2").value="#C8A8D0";
+    document.getElementById("color-preview-box2").style.background="";
+    const msg2=document.getElementById("inv-scan-msg2");
+    if(msg2){msg2.style.color="";msg2.innerHTML="";}
+    window._qrArticuloActual2 = null;
+  }
+  document.getElementById("fi-toggle-vestido2").style.display = abrir ? "none" : "block";
+}
+
+function buscarPorQR2(){
+  const input = document.getElementById("inv-scan-input2");
+  const msg = document.getElementById("inv-scan-msg2");
+  const id = (input.value||"").trim();
+  msg.textContent="";
+  if(!id) return;
+  const inv = window._invData||[];
+  const art = inv.find(x=>x.id===id);
+  if(!art){
+    msg.style.color="var(--rojo)";
+    msg.textContent="✕ Artículo no encontrado en inventario.";
+    return;
+  }
+  document.getElementById("c-modelo2").value = art.modelo||"";
+  document.getElementById("c-talla2").value = art.talla||"";
+  document.getElementById("c-color-name2").value = art.colorNombre||"";
+  document.getElementById("color-picker2").value = art.colorHex||"#C8A8D0";
+  document.getElementById("color-preview-box2").style.background = art.colorHex||"#C8A8D0";
+  window._qrArticuloActual2 = art.id;
+  msg.style.color="var(--dorado-d)";
+  msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
+    ' <button type="button" onclick="quitarArticuloEscaneado2()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+  input.value="";
+}
+
+function quitarArticuloEscaneado2(){
+  document.getElementById("c-modelo2").value="";
+  document.getElementById("c-talla2").value="";
+  document.getElementById("c-color-name2").value="";
+  document.getElementById("color-picker2").value="#C8A8D0";
+  document.getElementById("color-preview-box2").style.background="";
+  window._qrArticuloActual2=null;
+  const msg=document.getElementById("inv-scan-msg2");
+  if(msg){ msg.style.color=""; msg.innerHTML=""; }
+}
+
 function onInvColorChange(val){
   const box=document.getElementById("inv-color-preview-box");
   if(box) box.style.background=val;
@@ -2161,6 +2252,15 @@ async function saveCliente(){
     estatus:document.getElementById("c-estatus").value,
     imagen:document.getElementById("c-imagen").value,
     articuloId:window._qrArticuloActual||null,
+    vestido2: document.getElementById("bloque-vestido2").style.display!=="none" && document.getElementById("c-modelo2").value.trim()
+      ? {
+          marca: document.getElementById("c-marca2").value.trim(),
+          modelo: document.getElementById("c-modelo2").value.trim(),
+          talla: document.getElementById("c-talla2").value.trim(),
+          color: {hex:document.getElementById("color-picker2").value, nombre:document.getElementById("c-color-name2").value.trim()||document.getElementById("color-picker2").value},
+          articuloId: window._qrArticuloActual2||null
+        }
+      : null,
     pagos:[],
     progreso:{},
     creadoPor:currentUser.user,
@@ -2245,6 +2345,40 @@ function abrirEditarCliente(id){
       scanMsg.style.color="";
       scanMsg.textContent="";
     }
+  }
+  // Segundo vestido (si el cliente ya tiene uno vinculado)
+  const bloqueV2 = document.getElementById("bloque-edit-vestido2");
+  if(c.vestido2){
+    document.getElementById("edit-marca2").value = c.vestido2.marca||"";
+    document.getElementById("edit-modelo2").value = c.vestido2.modelo||"";
+    document.getElementById("edit-talla2").value = c.vestido2.talla||"";
+    document.getElementById("edit-color-nombre2").value = c.vestido2.color?.nombre||"";
+    const hex2 = c.vestido2.color?.hex||"#C8A8D0";
+    document.getElementById("edit-color-picker2").value = hex2;
+    document.getElementById("edit-color-preview2").style.background = hex2;
+    window._editArticuloVinculado2 = c.vestido2.articuloId || null;
+    const scanMsg2 = document.getElementById("edit-inv-scan-msg2");
+    if(scanMsg2){
+      const art2 = c.vestido2.articuloId ? (window._invData||[]).find(a=>a.id===c.vestido2.articuloId) : null;
+      if(art2){
+        scanMsg2.style.color="var(--dorado-d)";
+        scanMsg2.innerHTML = "✓ "+art2.categoria+" · "+art2.modelo+" · Talla "+art2.talla+" · "+art2.colorNombre+
+          ' <button type="button" onclick="quitarArticuloVinculadoEdicion2()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+      } else if(c.vestido2.articuloId){
+        scanMsg2.style.color="var(--rojo)";
+        scanMsg2.textContent="✕ Artículo vinculado ya no existe en inventario.";
+      } else {
+        scanMsg2.style.color=""; scanMsg2.textContent="";
+      }
+    }
+    bloqueV2.style.display="block";
+    document.getElementById("fi-edit-toggle-vestido2").style.display="none";
+    window._editVestido2Activo = true;
+  } else {
+    bloqueV2.style.display="none";
+    document.getElementById("fi-edit-toggle-vestido2").style.display="block";
+    window._editArticuloVinculado2 = null;
+    window._editVestido2Activo = false;
   }
   document.getElementById("edit-busto").value        = c.medidas?.busto||"";
   document.getElementById("edit-cintura").value      = c.medidas?.cintura||"";
@@ -2402,6 +2536,52 @@ function quitarArticuloVinculadoEdicion(){
   if(msg){ msg.style.color=""; msg.innerHTML=""; }
 }
 
+function toggleSegundoVestidoEdicion(){
+  const bloque = document.getElementById("bloque-edit-vestido2");
+  const abrir = bloque.style.display==="none";
+  bloque.style.display = abrir ? "block" : "none";
+  if(!abrir){
+    ["edit-marca2","edit-modelo2","edit-talla2","edit-color-nombre2","edit-inv-scan-input2"].forEach(id=>{
+      const el=document.getElementById(id); if(el) el.value="";
+    });
+    document.getElementById("edit-color-picker2").value="#C8A8D0";
+    document.getElementById("edit-color-preview2").style.background="";
+    const msg2=document.getElementById("edit-inv-scan-msg2");
+    if(msg2){msg2.style.color="";msg2.innerHTML="";}
+    window._editArticuloVinculado2 = null;
+    window._editVestido2Activo = false;
+  } else {
+    window._editVestido2Activo = true;
+  }
+  document.getElementById("fi-edit-toggle-vestido2").style.display = abrir ? "none" : "block";
+}
+
+function buscarPorQREdicion2(){
+  const input = document.getElementById("edit-inv-scan-input2");
+  const msg = document.getElementById("edit-inv-scan-msg2");
+  const id = (input.value||"").trim();
+  msg.textContent="";
+  if(!id) return;
+  const inv = window._invData||[];
+  const art = inv.find(x=>x.id===id);
+  if(!art){
+    msg.style.color="var(--rojo)";
+    msg.textContent="✕ Artículo no encontrado en inventario.";
+    return;
+  }
+  window._editArticuloVinculado2 = art.id;
+  msg.style.color="var(--dorado-d)";
+  msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
+    ' <button type="button" onclick="quitarArticuloVinculadoEdicion2()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+  input.value="";
+}
+
+function quitarArticuloVinculadoEdicion2(){
+  window._editArticuloVinculado2 = null;
+  const msg=document.getElementById("edit-inv-scan-msg2");
+  if(msg){ msg.style.color=""; msg.innerHTML=""; }
+}
+
 function cerrarEditarCliente(){
   document.getElementById("modal-editar-cliente").classList.remove("open");
   _editClienteId = null;
@@ -2409,6 +2589,9 @@ function cerrarEditarCliente(){
 
 function editColorChange(hex){
   document.getElementById("edit-color-preview").style.background = hex;
+}
+function editColorChange2(hex){
+  document.getElementById("edit-color-preview2").style.background = hex;
 }
 
 function editToggleParcialidades(){
@@ -2477,6 +2660,15 @@ async function guardarEdicionCliente(){
       talla:       document.getElementById("edit-talla").value.trim(),
       color:       {hex, nombre: document.getElementById("edit-color-nombre").value.trim()||hex},
       articuloId:  window._editArticuloVinculado||null,
+      vestido2: window._editVestido2Activo && document.getElementById("edit-modelo2").value.trim()
+        ? {
+            marca: document.getElementById("edit-marca2").value.trim(),
+            modelo: document.getElementById("edit-modelo2").value.trim(),
+            talla: document.getElementById("edit-talla2").value.trim(),
+            color: {hex:document.getElementById("edit-color-picker2").value, nombre:document.getElementById("edit-color-nombre2").value.trim()||document.getElementById("edit-color-picker2").value},
+            articuloId: window._editArticuloVinculado2||null
+          }
+        : null,
       paquete:     {...(original.paquete||{tipo:"solo",componentes:[]}), adicionales:getEditAdicionales()},
       medidas:     {
         busto:   document.getElementById("edit-busto").value,
@@ -3541,33 +3733,56 @@ async function togglePasoPedido(clienteId, pasoId){
       if(pasoId==="entregado"){
         const cli = allClientes[idx];
         const inv = data.inventario||[];
+        const entregando = cli.progreso.pedido.entregado;
+
+        // Vestido 1
         const yaDescontado = !!cli.progreso.pedido.entregado_descontado;
-        if(cli.progreso.pedido.entregado && !yaDescontado){
+        if(entregando && !yaDescontado){
           if(cli.articuloId){
             const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
             if(artIdx>-1){
               inv[artIdx].cantidad = Math.max(0, (Number(inv[artIdx].cantidad)||0) - 1);
               cli.progreso.pedido.entregado_descontado = true;
-              window._invData = inv;
             } else {
-              avisoInventario = " (artículo no encontrado en inventario, no se descontó)";
+              avisoInventario += " (vestido 1: artículo no encontrado en inventario)";
             }
           } else {
-            avisoInventario = " (sin artículo vinculado, no se descontó del inventario)";
+            avisoInventario += " (vestido 1: sin artículo vinculado)";
           }
-        } else if(!cli.progreso.pedido.entregado && yaDescontado && cli.articuloId){
+        } else if(!entregando && yaDescontado && cli.articuloId){
           const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
-          if(artIdx>-1){
-            inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1;
-            window._invData = inv;
-          }
+          if(artIdx>-1) inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1;
           cli.progreso.pedido.entregado_descontado = false;
         }
+
+        // Vestido 2 (si existe)
+        if(cli.vestido2){
+          const yaDescontado2 = !!cli.progreso.pedido.entregado_descontado2;
+          if(entregando && !yaDescontado2){
+            if(cli.vestido2.articuloId){
+              const artIdx2 = inv.findIndex(a=>a.id===cli.vestido2.articuloId);
+              if(artIdx2>-1){
+                inv[artIdx2].cantidad = Math.max(0, (Number(inv[artIdx2].cantidad)||0) - 1);
+                cli.progreso.pedido.entregado_descontado2 = true;
+              } else {
+                avisoInventario += " (vestido 2: artículo no encontrado en inventario)";
+              }
+            } else {
+              avisoInventario += " (vestido 2: sin artículo vinculado)";
+            }
+          } else if(!entregando && yaDescontado2 && cli.vestido2.articuloId){
+            const artIdx2 = inv.findIndex(a=>a.id===cli.vestido2.articuloId);
+            if(artIdx2>-1) inv[artIdx2].cantidad = (Number(inv[artIdx2].cantidad)||0) + 1;
+            cli.progreso.pedido.entregado_descontado2 = false;
+          }
+        }
+
+        window._invData = inv;
         await saveData({...data, users:allUsers, clientes:allClientes, inventario:inv});
         renderProceso();
         renderClientes();
         renderInventario();
-        toast(cli.progreso.pedido.entregado ? "Entrega marcada ✓"+avisoInventario : "Entrega desmarcada", avisoInventario?"err":"ok");
+        toast(entregando ? "Entrega marcada ✓"+avisoInventario : "Entrega desmarcada", avisoInventario?"err":"ok");
         return;
       }
     }
@@ -5356,146 +5571,6 @@ async function eliminarArticulo(artId){
   }catch(e){toast("Error al eliminar","err");}
 }
 
-// Migración única: sube a Cloudinary las fotos que quedaron guardadas en localStorage
-// de artículos creados antes de este cambio, y guarda la URL resultante en cada artículo.
-// Solo disponible para admins. Debe ejecutarse desde la misma computadora/navegador
-// donde se subieron esas fotos originalmente (ahí es donde vive el localStorage).
-async function migrarFotosACloudinary(){
-  const inv = window._invData||[];
-  const pendientes = inv.filter(a=>!a.fotoUrl && a.tieneFoto && localStorage.getItem("foto_"+a.id));
-  if(!pendientes.length){
-    toast("No hay fotos pendientes de migrar en este navegador ✓");
-    return;
-  }
-  if(!confirm(`Se encontraron ${pendientes.length} foto(s) guardadas en este navegador que aún no están en Cloudinary. ¿Migrarlas ahora? Puede tardar unos minutos — no cierres esta pestaña mientras termina.`)) return;
-
-  const btn = document.getElementById("btn-migrar-fotos");
-  const btnTextoOriginal = btn ? btn.textContent : "";
-  if(btn) btn.disabled = true;
-
-  let exitosas = 0, fallidas = 0;
-  let data, inventarioActualizado;
-  try{
-    data = await loadData();
-    inventarioActualizado = [...(data.inventario||[])];
-  }catch(e){
-    toast("No se pudo cargar el inventario. Verifica tu conexión.","err");
-    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-    return;
-  }
-
-  for(let i=0;i<pendientes.length;i++){
-    const art = pendientes[i];
-    if(btn) btn.textContent = `☁️ Migrando ${i+1}/${pendientes.length}...`;
-    const fotoBase64 = localStorage.getItem("foto_"+art.id);
-    if(!fotoBase64) continue;
-    try{
-      const url = await subirFotoCloudinary(fotoBase64);
-      const idx = inventarioActualizado.findIndex(x=>x.id===art.id);
-      if(idx!==-1) inventarioActualizado[idx] = {...inventarioActualizado[idx], fotoUrl:url};
-      try{ localStorage.removeItem("foto_"+art.id); }catch(e){}
-      exitosas++;
-    }catch(e){
-      console.error("Error migrando foto de "+art.id+":", e);
-      fallidas++;
-    }
-  }
-
-  try{
-    await saveData({...data, inventario:inventarioActualizado});
-    window._invData = inventarioActualizado;
-    renderInventario();
-  }catch(e){
-    console.error("Error guardando inventario migrado:", e);
-    toast("Fotos subidas a Cloudinary, pero hubo un error al guardar el inventario. Intenta de nuevo.","err");
-    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-    return;
-  }
-
-  if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-  toast(`Migración completa: ${exitosas} foto(s) migradas${fallidas?`, ${fallidas} con error`:""} ✓`);
-}
-
-// Descarga una imagen ya publicada (ej. una foto en Cloudinary) y la regresa como base64,
-// lista para volver a subirse con subirFotoCloudinary().
-async function descargarComoBase64(url){
-  const resp = await fetch(url);
-  if(!resp.ok) throw new Error("No se pudo descargar la foto original");
-  const blob = await resp.blob();
-  return new Promise((resolve, reject)=>{
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = reject;
-    reader.readAsDataURL(blob);
-  });
-}
-
-// Traspaso único: mueve las fotos que todavía viven en la cuenta anterior de Cloudinary
-// (fbuz82vi, personal) hacia la cuenta del negocio (CLOUDINARY_CLOUD actual), descargando
-// cada imagen y volviéndola a subir. Solo disponible para admins. Puede correr desde
-// cualquier computadora con internet — a diferencia de la migración de localStorage,
-// aquí las fotos ya viven en la nube, no en el navegador.
-async function traspasarFotosCuentaNueva(){
-  const inv = window._invData||[];
-  const pendientes = inv.filter(a=>a.fotoUrl && a.fotoUrl.includes(`/${CLOUDINARY_CLOUD_ANTERIOR}/`));
-  if(!pendientes.length){
-    toast("No hay fotos pendientes de traspasar a la cuenta del negocio ✓");
-    return;
-  }
-  if(!confirm(`Se encontraron ${pendientes.length} foto(s) todavía en la cuenta anterior. ¿Traspasarlas ahora a la cuenta del negocio? Puede tardar unos minutos — no cierres esta pestaña mientras termina.`)) return;
-
-  const btn = document.getElementById("btn-traspasar-fotos");
-  const btnTextoOriginal = btn ? btn.textContent : "";
-  if(btn) btn.disabled = true;
-
-  let exitosas = 0, fallidas = 0;
-  const idsActualizados = {}; // id del artículo → nueva URL en la cuenta del negocio
-
-  for(let i=0;i<pendientes.length;i++){
-    const art = pendientes[i];
-    if(btn) btn.textContent = `🔁 Traspasando ${i+1}/${pendientes.length}...`;
-    try{
-      const base64 = await descargarComoBase64(art.fotoUrl);
-      const nuevaUrl = await subirFotoCloudinary(base64);
-      idsActualizados[art.id] = nuevaUrl;
-      exitosas++;
-    }catch(e){
-      console.error("Error traspasando foto de "+art.id+":", e);
-      fallidas++;
-    }
-  }
-
-  // Antes de guardar, recargamos el inventario más reciente de JSONBin y solo
-  // actualizamos fotoUrl en los artículos traspasados — así no se pisa ningún
-  // cambio que alguien más haya hecho mientras corría el traspaso.
-  let data, inventarioActualizado;
-  try{
-    data = await loadData();
-    inventarioActualizado = (data.inventario||[]).map(a =>
-      idsActualizados[a.id] ? {...a, fotoUrl: idsActualizados[a.id]} : a
-    );
-  }catch(e){
-    console.error("Error recargando inventario tras traspaso:", e);
-    toast("Fotos traspasadas, pero no se pudo guardar el inventario actualizado. Verifica tu conexión e inténtalo de nuevo.","err");
-    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-    return;
-  }
-
-  try{
-    await saveData({...data, inventario:inventarioActualizado});
-    window._invData = inventarioActualizado;
-    renderInventario();
-  }catch(e){
-    console.error("Error guardando inventario tras traspaso:", e);
-    toast("Fotos traspasadas, pero hubo un error al guardar el inventario. Intenta de nuevo.","err");
-    if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-    return;
-  }
-
-  if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
-  toast(`Traspaso completo: ${exitosas} foto(s) movidas a la cuenta del negocio${fallidas?`, ${fallidas} con error`:""} ✓`);
-}
-
 function buscarPorQR(){
   const input = document.getElementById("inv-scan-input");
   const msg = document.getElementById("inv-scan-msg");
@@ -5754,8 +5829,19 @@ function generarNotaVenta(c){
           ${c.color?.nombre||"—"}
         </td>
       </tr>
+      ${c.vestido2 ? `
       <tr>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Precio:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>2do Vestido — Modelo:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem">${c.vestido2.modelo||"—"} ${c.vestido2.marca?"("+c.vestido2.marca+")":""}</td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>2do Vestido — Talla/Color:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem">
+          ${c.vestido2.talla||"—"} ·
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.vestido2.color?.hex||"#CCC"};vertical-align:middle;margin-right:4px;border:1px solid #999;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>
+          ${c.vestido2.color?.nombre||"—"}
+        </td>
+      </tr>` : ""}
+      <tr>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Precio${c.vestido2?" (ambos vestidos)":""}:</strong></td>
         <td colspan="3" style="border:1px solid #CCC;padding:.4rem .6rem"><strong style="color:#7A4F2A">$${total.toLocaleString("es-MX")}</strong></td>
       </tr>
     </table>
@@ -6158,6 +6244,44 @@ function generarContrato(c){
         <button type="button" class="btn-sec" onclick="buscarPorQREdicion()">BUSCAR</button>
       </div>
       <div id="edit-inv-scan-msg" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
+    </div>
+
+    <!-- Segundo vestido (caso aislado: doble boda, gemelas, etc.) -->
+    <div class="field" id="fi-edit-toggle-vestido2">
+      <button type="button" class="btn-sec" onclick="toggleSegundoVestidoEdicion()" id="btn-edit-toggle-vestido2">➕ Agregar segundo vestido</button>
+    </div>
+    <div id="bloque-edit-vestido2" style="display:none;border:1px dashed var(--dorado-d);border-radius:6px;padding:.8rem;margin-bottom:.8rem;background:#FFFDF9">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.6rem">
+        <span style="font-size:.7rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d)">Segundo vestido</span>
+        <button type="button" onclick="toggleSegundoVestidoEdicion()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.7rem;text-decoration:underline">✕ Quitar</button>
+      </div>
+      <div style="font-size:.7rem;color:var(--dorado-d);background:#F5EDE0;border-radius:4px;padding:.4rem .6rem;margin-bottom:.7rem">
+        ⚠️ El precio del vestido (más abajo) cubre <strong>ambos vestidos combinados</strong>, no cada uno por separado.
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+        <div class="field"><label>Marca</label><input type="text" id="edit-marca2" placeholder="Ej: Morilee"></div>
+        <div class="field"><label>Modelo</label><input type="text" id="edit-modelo2" placeholder="Ej: WF2813"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
+        <div class="field"><label>Talla</label><input type="text" id="edit-talla2" placeholder="Ej: Ch, M, 30"></div>
+        <div class="field"><label>Color (nombre)</label><input type="text" id="edit-color-nombre2" placeholder="Ej: Azul cielo"></div>
+      </div>
+      <div class="field"><label>Color</label>
+        <div style="display:flex;align-items:center;gap:.8rem">
+          <div id="edit-color-preview2" style="width:36px;height:36px;border-radius:3px;border:1px solid #DDD;cursor:pointer;flex-shrink:0" onclick="document.getElementById('edit-color-picker2').click()"></div>
+          <input type="color" id="edit-color-picker2" style="opacity:0;width:0;height:0;position:absolute" onchange="editColorChange2(this.value)">
+          <span style="font-size:.74rem;color:#AAA">Toca el recuadro para cambiar</span>
+        </div>
+      </div>
+      <div class="field">
+        <label>📷 Vincular artículo del inventario</label>
+        <div style="display:flex;gap:.5rem">
+          <input type="text" id="edit-inv-scan-input2" placeholder="Apunta el escáner aquí y escanea el QR..." style="flex:1"
+            onkeydown="if(event.key==='Enter'){buscarPorQREdicion2();event.preventDefault();}">
+          <button type="button" class="btn-sec" onclick="buscarPorQREdicion2()">BUSCAR</button>
+        </div>
+        <div id="edit-inv-scan-msg2" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
+      </div>
     </div>
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Medidas</div>
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem">
