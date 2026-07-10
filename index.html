@@ -807,7 +807,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <option>Pedido realizado</option>
             <option>Medidas tomadas</option>
             <option>Recibido</option>
-            <option>Entregado</option>
+            <option disabled title="Se marca automáticamente al presionar el botón de Entrega en Proceso Pedido">Entregado</option>
           </select>
         </div>
         <div class="fi">
@@ -1635,9 +1635,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
+const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const BIN_ID     = "6a2f95d2da38895dfec1c3bb";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -6345,7 +6345,7 @@ function generarContrato(c){
         <option value="En Compra">En Compra</option>
         <option value="En Tienda">En Tienda</option>
         <option value="Recibido">Recibido</option>
-        <option value="Entregado">Entregado</option>
+        <option value="Entregado" disabled title="Se marca automáticamente al presionar el botón de Entrega en Proceso Pedido">Entregado</option>
       </select>
     </div>
     <div class="field"><label>Observaciones</label><textarea id="edit-obs" rows="3" style="width:100%;border:1px solid #E8DDD0;border-radius:3px;padding:.5rem;font-family:'Lato',sans-serif;font-size:.82rem;resize:vertical;outline:none" placeholder="Notas adicionales..."></textarea></div>
