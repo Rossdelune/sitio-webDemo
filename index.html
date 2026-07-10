@@ -247,6 +247,8 @@ input[type="color"]{opacity:0;position:absolute;width:0;height:0;}
 .tbl{width:100%;border-collapse:collapse;font-size:.8rem;}
 .tbl th{text-align:left;padding:.55rem .7rem;font-size:.63rem;letter-spacing:.13em;text-transform:uppercase;color:#AAA;font-weight:400;border-bottom:1px solid #EEE;}
 .tbl td{padding:.65rem .7rem;border-bottom:1px solid #F5F0E8;vertical-align:middle;}
+.col-sticky{position:sticky;left:0;z-index:15;background:#FFFFFF;box-shadow:2px 0 4px rgba(0,0,0,.06);}
+.tbl th.col-sticky{z-index:16;background:var(--card);}
 .tbl tr:last-child td{border-bottom:none;}
 .tbl tr:hover td{background:#FDFAF6;}
 .color-dot{width:14px;height:14px;border-radius:50%;display:inline-block;border:1px solid rgba(0,0,0,.1);vertical-align:middle;margin-right:.4rem;}
@@ -827,7 +829,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <thead><tr>
               <th>Fecha</th>
               <th>Contrato</th>
-              <th>Nombre</th>
+              <th class="col-sticky">Nombre</th>
               <th>Celular</th>
               <th>Teléfono</th>
               <th>Correo</th>
@@ -1600,8 +1602,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // ══ CONFIG ══
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
@@ -2570,7 +2571,7 @@ function renderClientes(lista){
     return `<tr>
       <td style="font-size:.74rem;white-space:nowrap">${fContrato}</td>
       <td style="font-size:.74rem;color:#888">${c.esNotaSencilla?"Sin folio":(c.folio||"—")}</td>
-      <td style="white-space:nowrap"><strong style="font-weight:500;font-size:.82rem">${c.nombre}</strong></td>
+      <td class="col-sticky" style="white-space:nowrap"><strong style="font-weight:500;font-size:.82rem">${c.nombre}</strong></td>
       <td style="font-size:.76rem;white-space:nowrap">${c.cel||"—"}</td>
       <td style="font-size:.76rem;white-space:nowrap">${c.tel||"—"}</td>
       <td style="font-size:.74rem">${c.correo||"—"}</td>
