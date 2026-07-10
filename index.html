@@ -1635,9 +1635,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
+const MASTER_KEY = "$2a$10$3E2kLNvPGqY3lb/WE.4o7uXawL1DYruxuYexxv0RXnagND.XprhAG";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
+const BIN_ID     = "6a2f95d2da38895dfec1c3bb";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -2725,15 +2725,20 @@ document.addEventListener("click", function(e){
 });
 
 async function repararEstatusAtascado(clienteId){
-  if(!confirm("Esto regresará el estatus de este cliente a 'Pedido Realizado' para que vuelva a aparecer en Proceso Pedido y puedas marcar la Entrega real (la que sí descuenta inventario). ¿Continuar?")) return;
+  if(!confirm("Esto regresará este cliente a 'Pedido Realizado' Y reiniciará por completo el interruptor de Entrega (para que quede sin marcar), para que puedas marcar la Entrega real desde cero. ¿Continuar?")) return;
   try{
     const data = await loadData();
     allClientes = data.clientes||[];
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx===-1){ toast("Cliente no encontrado","err"); return; }
     allClientes[idx].estatus = "Pedido Realizado";
+    if(!allClientes[idx].progreso) allClientes[idx].progreso = {};
+    if(!allClientes[idx].progreso.pedido) allClientes[idx].progreso.pedido = {};
+    allClientes[idx].progreso.pedido.entregado = false;
+    allClientes[idx].progreso.pedido.entregado_descontado = false;
+    allClientes[idx].progreso.pedido.entregado_descontado2 = false;
     await saveData({...data, users:allUsers, clientes:allClientes});
-    toast("Estatus corregido ✓ — ya puedes marcar su Entrega real");
+    toast("Reparado por completo ✓ — el botón de Entrega ya está sin marcar");
     renderClientes();
   }catch(e){ toast("Error al reparar","err"); }
 }
@@ -2796,7 +2801,7 @@ function renderClientes(lista){
       <td style="font-size:.74rem">${c.fpago||"—"}</td>
       <td style="font-size:.74rem;white-space:nowrap;${venceClass}">${fVence}</td>
       <td><span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}" style="white-space:nowrap">${c.estatus||"—"}</span>
-        ${(c.estatus==="Entregado" && !c.progreso?.pedido?.entregado) ? `<br><button onclick="repararEstatusAtascado('${c.id}')" style="margin-top:.2rem;background:none;border:1px solid var(--rojo);color:var(--rojo);border-radius:10px;padding:.1rem .5rem;font-size:.62rem;cursor:pointer;white-space:nowrap" title="Este cliente quedó marcado como Entregado sin pasar por el botón real de Entrega, por lo que el inventario no se descontó">⚠️ Reparar</button>` : ""}
+        ${((c.estatus==="Entregado") !== !!(c.progreso?.pedido?.entregado)) ? `<br><button onclick="repararEstatusAtascado('${c.id}')" style="margin-top:.2rem;background:none;border:1px solid var(--rojo);color:var(--rojo);border-radius:10px;padding:.1rem .5rem;font-size:.62rem;cursor:pointer;white-space:nowrap" title="El estatus y el botón real de Entrega no coinciden en este cliente — toca para reiniciar ambos y marcar la entrega correctamente">⚠️ Reparar</button>` : ""}
       </td>
       <td style="font-size:.72rem;max-width:160px">${adicionales}</td>
       <td style="font-size:.74rem">${c.elaboracion==="Sobre pedido"?"✓":"—"}</td>
