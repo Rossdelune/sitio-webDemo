@@ -519,7 +519,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.3</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.4</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -676,6 +676,15 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             </div>
           </div>
         </div>
+        <!-- Medidas vestido 1 -->
+        <div class="card-title" style="margin-top:.5rem">Medidas — Vestido 1</div>
+        <div class="fg3">
+          <div class="fi"><label>Busto (cm)</label><input type="number" id="m-busto" placeholder="82"></div>
+          <div class="fi"><label>Cintura (cm)</label><input type="number" id="m-cintura" placeholder="64"></div>
+          <div class="fi"><label>Cadera (cm)</label><input type="number" id="m-cadera" placeholder="90"></div>
+          <div class="fi"><label>Copa</label><input type="text" id="m-copa" placeholder="A, B, C..."></div>
+          <div class="fi"><label>Largo (cm)</label><input type="number" id="m-largo" placeholder="120"></div>
+        </div>
 
         <!-- Segundo vestido (caso aislado: doble boda, gemelas, etc.) -->
         <div class="fi" id="fi-toggle-vestido2" style="margin-top:.4rem">
@@ -712,7 +721,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
               </div>
             </div>
           </div>
-          <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dorado-d);margin:.6rem 0 .4rem">Medidas segundo vestido</div>
+          <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dorado-d);margin:.6rem 0 .4rem">Medidas — Vestido 2</div>
           <div class="fg3">
             <div class="fi"><label>Busto (cm)</label><input type="number" id="m-busto2" placeholder="82"></div>
             <div class="fi"><label>Cintura (cm)</label><input type="number" id="m-cintura2" placeholder="64"></div>
@@ -739,15 +748,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
               <option>En parcialidades</option>
             </select>
           </div>
-        </div>
-        <!-- Medidas -->
-        <div class="card-title" style="margin-top:.5rem">Medidas</div>
-        <div class="fg3">
-          <div class="fi"><label>Busto (cm)</label><input type="number" id="m-busto" placeholder="82"></div>
-          <div class="fi"><label>Cintura (cm)</label><input type="number" id="m-cintura" placeholder="64"></div>
-          <div class="fi"><label>Cadera (cm)</label><input type="number" id="m-cadera" placeholder="90"></div>
-          <div class="fi"><label>Copa</label><input type="text" id="m-copa" placeholder="A, B, C..."></div>
-          <div class="fi"><label>Largo (cm)</label><input type="number" id="m-largo" placeholder="120"></div>
         </div>
       </div>
 
@@ -1648,9 +1648,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
-const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
-const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
+const MASTER_KEY = "REEMPLAZAR_MASTER_KEY";
+const ACCESS_KEY = "REEMPLAZAR_ACCESS_KEY";
+const BIN_ID     = "REEMPLAZAR_BIN_ID";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 let currentUser = null, allUsers = [], allClientes = [];
@@ -5971,15 +5971,15 @@ function generarNotaVenta(c){
         <td style="border:1px solid #CCC;padding:.4rem .6rem">${fEntrega}</td>
       </tr>
       <tr>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Tipo:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>${c.vestido2?"Vestido 1 — Tipo:":"Tipo:"}</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">${tipos[c.tipo]||"—"}</td>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Talla:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>${c.vestido2?"Vestido 1 — Talla:":"Talla:"}</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">${c.talla||"—"}</td>
       </tr>
       <tr>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Modelo:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>${c.vestido2?"Vestido 1 — Modelo:":"Modelo:"}</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">${c.modelo||"—"} ${c.marca?"("+c.marca+")":""}</td>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Color:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>${c.vestido2?"Vestido 1 — Color:":"Color:"}</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">
           <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.color?.hex||"#CCC"};vertical-align:middle;margin-right:4px;border:1px solid #999;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>
           ${c.color?.nombre||"—"}
@@ -5987,9 +5987,9 @@ function generarNotaVenta(c){
       </tr>
       ${c.vestido2 ? `
       <tr>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>2do Vestido — Modelo:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Vestido 2 — Modelo:</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">${c.vestido2.modelo||"—"} ${c.vestido2.marca?"("+c.vestido2.marca+")":""}</td>
-        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>2do Vestido — Talla/Color:</strong></td>
+        <td style="border:1px solid #CCC;padding:.4rem .6rem"><strong>Vestido 2 — Talla/Color:</strong></td>
         <td style="border:1px solid #CCC;padding:.4rem .6rem">
           ${c.vestido2.talla||"—"} ·
           <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${c.vestido2.color?.hex||"#CCC"};vertical-align:middle;margin-right:4px;border:1px solid #999;-webkit-print-color-adjust:exact;print-color-adjust:exact"></span>
@@ -6004,7 +6004,7 @@ function generarNotaVenta(c){
 
     <!-- MEDIDAS -->
     <table style="width:100%;border-collapse:collapse;border:2px solid #1a1a1a;border-top:none">
-      <tr><td colspan="6" style="background:#F0F0F0;font-weight:700;text-align:center;border:1px solid #CCC;padding:.3rem">Medidas</td></tr>
+      <tr><td colspan="6" style="background:#F0F0F0;font-weight:700;text-align:center;border:1px solid #CCC;padding:.3rem">${c.vestido2?"Medidas — Vestido 1":"Medidas"}</td></tr>
       <tr>
         <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Busto</td>
         <td style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.medidas?.busto||""}</td>
@@ -6020,6 +6020,24 @@ function generarNotaVenta(c){
         <td colspan="3" style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.medidas?.largo||""}</td>
       </tr>
     </table>
+    ${c.vestido2 ? `
+    <table style="width:100%;border-collapse:collapse;border:2px solid #1a1a1a;border-top:none">
+      <tr><td colspan="6" style="background:#F0F0F0;font-weight:700;text-align:center;border:1px solid #CCC;padding:.3rem">Medidas — Vestido 2</td></tr>
+      <tr>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Busto</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.vestido2.medidas?.busto||""}</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Cintura</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.vestido2.medidas?.cintura||""}</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Cadera</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.vestido2.medidas?.cadera||""}</td>
+      </tr>
+      <tr>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Copa</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.vestido2.medidas?.copa||""}</td>
+        <td style="border:1px solid #CCC;padding:.3rem .5rem;font-weight:600;text-align:center">Largo</td>
+        <td colspan="3" style="border:1px solid #CCC;padding:.3rem .5rem;text-align:center">${c.vestido2.medidas?.largo||""}</td>
+      </tr>
+    </table>` : ""}
 
     <!-- ACCESORIOS -->
     <table style="width:100%;border-collapse:collapse;border:2px solid #1a1a1a;border-top:none">
