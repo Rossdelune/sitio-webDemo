@@ -1923,10 +1923,18 @@ function goSec(id){
   if(id==="progreso-agenda"){renderAgendaAjustes();}
   if(id==="progreso-diseno"){renderDiseno();}
   if(id==="progreso-formato"){renderFormatoAjustesLista();}
-  if(id==="inv-qr"){renderInventario();refrescarInventarioDesdeServidor().then(renderInventario);}
+  if(id==="inv-qr"){
+    const lista=document.getElementById("inv-lista");
+    if(lista) lista.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">⏳ Cargando inventario directo del servidor...</p>';
+    const resumen=document.getElementById("inv-resumen-categorias");
+    if(resumen) resumen.innerHTML="";
+    refrescarInventarioDesdeServidor().then(renderInventario);
+  }
   if(id==="inv-buscar"){
     const inp=document.getElementById("inv-buscar-input");
     if(inp) inp.value="";
+    const cont=document.getElementById("inv-buscar-resultados");
+    if(cont) cont.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">⏳ Cargando inventario directo del servidor...</p>';
     refrescarInventarioDesdeServidor().then(()=>buscarModeloInventario(""));
   }
   if(id==="inv-nuevo"){limpiarFormInv();}
