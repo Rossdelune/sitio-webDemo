@@ -451,7 +451,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 #modal-worker .modal{max-width:400px;}
 /* print */
 @media print{
-  body > *:not(.overlay):not(#screen-panel){display:none!important;}
+  body > *:not(.overlay):not(#screen-panel):not(#modal-qr-print):not(#modal-lote-print){display:none!important;}
   .overlay{display:none!important;}
   /* Corte de caja — impresión directa desde la sección */
   #screen-panel{display:block!important;}
@@ -519,7 +519,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · v27.7</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.0</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1272,6 +1272,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           </div>
           <div class="fi"><label>Modelo / Nombre</label><input type="text" id="inv-modelo" placeholder="Ej: wf875, Tiara perla..."></div>
         </div>
+        <div class="fi"><label>Marca</label><input type="text" id="inv-marca" placeholder="Ej: Morilee, Jovani..."></div>
         <div class="fg2">
           <div class="fi"><label>Talla</label><input type="text" id="inv-talla" placeholder="XS, S, M, L..."></div>
           <div class="fi">
@@ -1635,7 +1636,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
@@ -2055,6 +2055,7 @@ function buscarPorQR2(){
     return;
   }
   document.getElementById("c-modelo2").value = art.modelo||"";
+  document.getElementById("c-marca2").value = art.marca||"";
   document.getElementById("c-talla2").value = art.talla||"";
   document.getElementById("c-color-name2").value = art.colorNombre||"";
   document.getElementById("color-picker2").value = art.colorHex||"#C8A8D0";
@@ -2531,7 +2532,19 @@ function buscarPorQREdicion(){
     msg.textContent="✕ Artículo no encontrado en inventario.";
     return;
   }
-  // Solo se guarda el vínculo — NO se toca modelo/talla/color/precio del cliente
+  // Autocompletar campos del cliente (mismo comportamiento que Nuevo cliente)
+  const catLower = (art.categoria||"").toLowerCase();
+  if(catLower.includes("quinceañera")||catLower.includes("quinceanera")){
+    document.getElementById("edit-tipo").value = "xv";
+  } else if(catLower.includes("novia")){
+    document.getElementById("edit-tipo").value = "novia";
+  }
+  document.getElementById("edit-marca").value = art.marca||"";
+  document.getElementById("edit-modelo").value = art.modelo||"";
+  document.getElementById("edit-talla").value = art.talla||"";
+  document.getElementById("edit-color-nombre").value = art.colorNombre||"";
+  document.getElementById("edit-color-picker").value = art.colorHex||"#C8A8D0";
+  editColorChange(art.colorHex||"#C8A8D0");
   window._editArticuloVinculado = art.id;
   msg.style.color="var(--dorado-d)";
   msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
@@ -2578,6 +2591,12 @@ function buscarPorQREdicion2(){
     msg.textContent="✕ Artículo no encontrado en inventario.";
     return;
   }
+  document.getElementById("edit-marca2").value = art.marca||"";
+  document.getElementById("edit-modelo2").value = art.modelo||"";
+  document.getElementById("edit-talla2").value = art.talla||"";
+  document.getElementById("edit-color-nombre2").value = art.colorNombre||"";
+  document.getElementById("edit-color-picker2").value = art.colorHex||"#C8A8D0";
+  editColorChange2(art.colorHex||"#C8A8D0");
   window._editArticuloVinculado2 = art.id;
   msg.style.color="var(--dorado-d)";
   msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
@@ -5404,7 +5423,7 @@ function ejecutarImpresionLote(){
   setTimeout(()=>{
     window.print();
     modal.classList.remove("printing");
-  }, 300);
+  }, 800);
 }
 // ─────────────────────────────────────────────────────────────────────
 
@@ -5432,7 +5451,7 @@ function ejecutarImpresionQR(){
   setTimeout(()=>{
     window.print();
     modal.classList.remove("printing");
-  }, 200);
+  }, 600);
 }
 
 function cerrarModalQR(){
@@ -5508,7 +5527,7 @@ async function subirDocumentoCloudinary(base64){
 }
 
 function limpiarFormInv(){
-  ["inv-categoria","inv-modelo","inv-talla","inv-color-nombre","inv-precio","inv-cantidad","inv-notas"].forEach(id=>{
+  ["inv-categoria","inv-marca","inv-modelo","inv-talla","inv-color-nombre","inv-precio","inv-cantidad","inv-notas"].forEach(id=>{
     const el=document.getElementById(id);
     if(el) el.value = id==="inv-cantidad"?"1":"";
   });
@@ -5532,6 +5551,7 @@ function editarArticulo(artId){
   goSec("inv-nuevo"); // dispara limpiarFormInv(); llenamos los campos después
   window._editandoArticuloId = artId;
   document.getElementById("inv-categoria").value = a.categoria||"";
+  document.getElementById("inv-marca").value = a.marca||"";
   document.getElementById("inv-modelo").value = a.modelo||"";
   document.getElementById("inv-talla").value = a.talla||"";
   document.getElementById("inv-color-picker").value = a.colorHex||"#C8A8D0";
@@ -5593,6 +5613,7 @@ async function guardarArticuloInv(){
     const articulo = {
       id: artId,
       categoria,
+      marca: document.getElementById("inv-marca").value.trim(),
       modelo,
       talla: document.getElementById("inv-talla").value.trim(),
       colorHex: document.getElementById("inv-color-picker").value,
@@ -5650,7 +5671,16 @@ function buscarPorQR(){
     return;
   }
   // Autocompletar campos del formulario
+  const catLower = (art.categoria||"").toLowerCase();
+  if(catLower.includes("quinceañera")||catLower.includes("quinceanera")){
+    document.getElementById("c-tipo").value = "xv";
+    updatePkg();
+  } else if(catLower.includes("novia")){
+    document.getElementById("c-tipo").value = "novia";
+    updatePkg();
+  }
   document.getElementById("c-modelo").value = art.modelo||"";
+  document.getElementById("c-marca").value = art.marca||"";
   document.getElementById("c-talla").value = art.talla||"";
   document.getElementById("c-color-name").value = art.colorNombre||"";
   document.getElementById("color-picker").value = art.colorHex||"#C8A8D0";
