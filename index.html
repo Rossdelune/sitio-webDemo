@@ -519,7 +519,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.2</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.3</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -711,6 +711,16 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
                 <input type="text" id="c-color-name2" placeholder="Nombre del color">
               </div>
             </div>
+          </div>
+          <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.1em;color:var(--dorado-d);margin:.6rem 0 .4rem">Medidas segundo vestido</div>
+          <div class="fg3">
+            <div class="fi"><label>Busto (cm)</label><input type="number" id="m-busto2" placeholder="82"></div>
+            <div class="fi"><label>Cintura (cm)</label><input type="number" id="m-cintura2" placeholder="64"></div>
+            <div class="fi"><label>Cadera (cm)</label><input type="number" id="m-cadera2" placeholder="90"></div>
+          </div>
+          <div class="fg2">
+            <div class="fi"><label>Copa</label><input type="text" id="m-copa2" placeholder="A, B, C..."></div>
+            <div class="fi"><label>Largo (cm)</label><input type="number" id="m-largo2" placeholder="120"></div>
           </div>
         </div>
         <div class="fg2">
@@ -2035,7 +2045,7 @@ function toggleSegundoVestido(){
   bloque.style.display = abrir ? "block" : "none";
   if(!abrir){
     // Al quitar el segundo vestido, limpiar sus campos y su vínculo
-    ["c-marca2","c-modelo2","c-talla2","c-color-name2","inv-scan-input2"].forEach(id=>{
+    ["c-marca2","c-modelo2","c-talla2","c-color-name2","inv-scan-input2","m-busto2","m-cintura2","m-cadera2","m-copa2","m-largo2"].forEach(id=>{
       const el=document.getElementById(id); if(el) el.value="";
     });
     document.getElementById("color-picker2").value="#C8A8D0";
@@ -2280,6 +2290,7 @@ async function saveCliente(){
           modelo: document.getElementById("c-modelo2").value.trim(),
           talla: document.getElementById("c-talla2").value.trim(),
           color: {hex:document.getElementById("color-picker2").value, nombre:document.getElementById("c-color-name2").value.trim()||document.getElementById("color-picker2").value},
+          medidas: {busto:document.getElementById("m-busto2").value,cintura:document.getElementById("m-cintura2").value,cadera:document.getElementById("m-cadera2").value,copa:document.getElementById("m-copa2").value,largo:document.getElementById("m-largo2").value},
           articuloId: window._qrArticuloActual2||null
         }
       : null,
@@ -2378,6 +2389,11 @@ function abrirEditarCliente(id){
     const hex2 = c.vestido2.color?.hex||"#C8A8D0";
     document.getElementById("edit-color-picker2").value = hex2;
     document.getElementById("edit-color-preview2").style.background = hex2;
+    document.getElementById("edit-busto2").value   = c.vestido2.medidas?.busto||"";
+    document.getElementById("edit-cintura2").value = c.vestido2.medidas?.cintura||"";
+    document.getElementById("edit-cadera2").value  = c.vestido2.medidas?.cadera||"";
+    document.getElementById("edit-copa2").value    = c.vestido2.medidas?.copa||"";
+    document.getElementById("edit-largo2").value   = c.vestido2.medidas?.largo||"";
     window._editArticuloVinculado2 = c.vestido2.articuloId || null;
     const scanMsg2 = document.getElementById("edit-inv-scan-msg2");
     if(scanMsg2){
@@ -2575,7 +2591,7 @@ function toggleSegundoVestidoEdicion(){
   const abrir = bloque.style.display==="none";
   bloque.style.display = abrir ? "block" : "none";
   if(!abrir){
-    ["edit-marca2","edit-modelo2","edit-talla2","edit-color-nombre2","edit-inv-scan-input2"].forEach(id=>{
+    ["edit-marca2","edit-modelo2","edit-talla2","edit-color-nombre2","edit-inv-scan-input2","edit-busto2","edit-cintura2","edit-cadera2","edit-copa2","edit-largo2"].forEach(id=>{
       const el=document.getElementById(id); if(el) el.value="";
     });
     document.getElementById("edit-color-picker2").value="#C8A8D0";
@@ -2706,6 +2722,13 @@ async function guardarEdicionCliente(){
             modelo: document.getElementById("edit-modelo2").value.trim(),
             talla: document.getElementById("edit-talla2").value.trim(),
             color: {hex:document.getElementById("edit-color-picker2").value, nombre:document.getElementById("edit-color-nombre2").value.trim()||document.getElementById("edit-color-picker2").value},
+            medidas: {
+              busto:   document.getElementById("edit-busto2").value,
+              cintura: document.getElementById("edit-cintura2").value,
+              cadera:  document.getElementById("edit-cadera2").value,
+              copa:    document.getElementById("edit-copa2").value,
+              largo:   document.getElementById("edit-largo2").value
+            },
             articuloId: window._editArticuloVinculado2||null
           }
         : null,
@@ -4076,6 +4099,9 @@ function generarFormatoAjuste(c){
   const medidasRows = [["Busto",c.medidas?.busto],["Cintura",c.medidas?.cintura],["Cadera",c.medidas?.cadera],["Copa",c.medidas?.copa],["Largo",c.medidas?.largo]]
     .map(([lab,val])=>`<tr><td style="border:1px solid #999;padding:.35rem .5rem;background:#FAFAFA;font-weight:600;width:45%">${lab}</td><td style="border:1px solid #999;padding:.35rem .5rem">${val||"&nbsp;"}</td></tr>`).join("");
 
+  const medidasRows2 = c.vestido2 ? [["Busto",c.vestido2.medidas?.busto],["Cintura",c.vestido2.medidas?.cintura],["Cadera",c.vestido2.medidas?.cadera],["Copa",c.vestido2.medidas?.copa],["Largo",c.vestido2.medidas?.largo]]
+    .map(([lab,val])=>`<tr><td style="border:1px solid #999;padding:.35rem .5rem;background:#FAFAFA;font-weight:600;width:45%">${lab}</td><td style="border:1px solid #999;padding:.35rem .5rem">${val||"&nbsp;"}</td></tr>`).join("") : "";
+
   const notas = PASOS_PEDIDO.map(p=>{
     const nota = prog[p.id+"_nota"]||"";
     return `<div style="border-bottom:1px dashed #CCC;padding:.35rem 0">
@@ -4127,7 +4153,7 @@ function generarFormatoAjuste(c){
       <!-- CUADRANTES SUPERIORES: MEDIDAS + PRUEBAS -->
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10pt;margin-bottom:8pt">
         <div>
-          <div style="font-weight:700;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;margin-bottom:4pt">Medidas</div>
+          <div style="font-weight:700;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;margin-bottom:4pt">${c.vestido2?"Medidas — Vestido 1":"Medidas"}</div>
           <table style="width:100%;border-collapse:collapse;font-size:8.5pt">${medidasRows}</table>
         </div>
         <div>
@@ -4143,6 +4169,11 @@ function generarFormatoAjuste(c){
           </table>
         </div>
       </div>
+      ${c.vestido2 ? `
+      <div style="margin-bottom:8pt">
+        <div style="font-weight:700;font-size:7.5pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;margin-bottom:4pt">Medidas — Vestido 2</div>
+        <table style="width:100%;border-collapse:collapse;font-size:8.5pt">${medidasRows2}</table>
+      </div>` : ""}
 
       <!-- NOTAS POR AJUSTE (divididas) -->
       <div style="margin-bottom:10pt">
@@ -6406,6 +6437,16 @@ function generarContrato(c){
           <button type="button" class="btn-sec" onclick="buscarPorQREdicion2()">BUSCAR</button>
         </div>
         <div id="edit-inv-scan-msg2" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
+      </div>
+      <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Medidas segundo vestido</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:.6rem">
+        <div class="field"><label>Busto</label><input type="text" id="edit-busto2" placeholder="—"></div>
+        <div class="field"><label>Cintura</label><input type="text" id="edit-cintura2" placeholder="—"></div>
+        <div class="field"><label>Cadera</label><input type="text" id="edit-cadera2" placeholder="—"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-top:.6rem">
+        <div class="field"><label>Copa</label><input type="text" id="edit-copa2" placeholder="—"></div>
+        <div class="field"><label>Largo</label><input type="text" id="edit-largo2" placeholder="—"></div>
       </div>
     </div>
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Medidas</div>
