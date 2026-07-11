@@ -519,7 +519,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.0</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.2</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -781,7 +781,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           </div>
         </div>
         <div class="fg2">
-          <div class="fi"><label>Precio vestido ($)</label><input type="number" id="c-precio" placeholder="0" oninput="calcTotal()"></div>
+          <div class="fi"><label>Precio vestido ($)</label><input type="number" id="c-precio" placeholder="0" oninput="calcTotal()">
+            <div id="precio-auto-warn" style="display:none;font-size:.68rem;color:var(--dorado-d);margin-top:.2rem">⚠️ Precio autocompletado por escaneo — verifica antes de guardar.</div>
+          </div>
           <div class="fi"><label>Anticipo ($)</label><input type="number" id="c-anticipo" placeholder="0" oninput="calcTotal()"></div>
         </div>
         <div class="fi"><label>Forma de pago</label>
@@ -1999,6 +2001,10 @@ function limpiarFormularioCliente(){
   const scanInput=document.getElementById("inv-scan-input");
   if(scanInput) scanInput.value="";
   window._qrArticuloActual=null;
+  window._qrPrecio1=0;
+  window._qrPrecio2=0;
+  const precioWarn=document.getElementById("precio-auto-warn");
+  if(precioWarn) precioWarn.style.display="none";
   // Segundo vestido: colapsar y limpiar por completo
   const bloqueV2=document.getElementById("bloque-vestido2");
   if(bloqueV2 && bloqueV2.style.display!=="none") toggleSegundoVestido();
@@ -2037,6 +2043,8 @@ function toggleSegundoVestido(){
     const msg2=document.getElementById("inv-scan-msg2");
     if(msg2){msg2.style.color="";msg2.innerHTML="";}
     window._qrArticuloActual2 = null;
+    window._qrPrecio2 = 0;
+    actualizarPrecioAutoSuma();
   }
   document.getElementById("fi-toggle-vestido2").style.display = abrir ? "none" : "block";
 }
@@ -2061,6 +2069,8 @@ function buscarPorQR2(){
   document.getElementById("color-picker2").value = art.colorHex||"#C8A8D0";
   document.getElementById("color-preview-box2").style.background = art.colorHex||"#C8A8D0";
   window._qrArticuloActual2 = art.id;
+  window._qrPrecio2 = Number(art.precio)||0;
+  actualizarPrecioAutoSuma();
   msg.style.color="var(--dorado-d)";
   msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+
     ' <button type="button" onclick="quitarArticuloEscaneado2()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
@@ -2074,6 +2084,8 @@ function quitarArticuloEscaneado2(){
   document.getElementById("color-picker2").value="#C8A8D0";
   document.getElementById("color-preview-box2").style.background="";
   window._qrArticuloActual2=null;
+  window._qrPrecio2 = 0;
+  actualizarPrecioAutoSuma();
   const msg=document.getElementById("inv-scan-msg2");
   if(msg){ msg.style.color=""; msg.innerHTML=""; }
 }
@@ -5657,6 +5669,21 @@ async function eliminarArticulo(artId){
   }catch(e){toast("Error al eliminar","err");}
 }
 
+// ══ AUTO-SUMA DE PRECIO POR ESCANEO ══
+window._qrPrecio1 = 0;
+window._qrPrecio2 = 0;
+function actualizarPrecioAutoSuma(){
+  const suma = (window._qrPrecio1||0) + (window._qrPrecio2||0);
+  const warn = document.getElementById("precio-auto-warn");
+  if(suma>0){
+    document.getElementById("c-precio").value = suma;
+    calcTotal();
+    if(warn) warn.style.display="block";
+  } else {
+    if(warn) warn.style.display="none";
+  }
+}
+
 function buscarPorQR(){
   const input = document.getElementById("inv-scan-input");
   const msg = document.getElementById("inv-scan-msg");
@@ -5684,7 +5711,8 @@ function buscarPorQR(){
   document.getElementById("c-talla").value = art.talla||"";
   document.getElementById("c-color-name").value = art.colorNombre||"";
   document.getElementById("color-picker").value = art.colorHex||"#C8A8D0";
-  if(art.precio) document.getElementById("c-precio").value = art.precio;
+  window._qrPrecio1 = Number(art.precio)||0;
+  actualizarPrecioAutoSuma();
   // Actualizar el color visualmente si existe la función
   if(typeof onColorChange==="function") onColorChange(art.colorHex||"#C8A8D0");
   if(typeof onColorNameInput==="function") onColorNameInput(art.colorNombre||"");
@@ -5705,6 +5733,8 @@ function quitarArticuloEscaneado(){
   const colorPicker=document.getElementById("color-picker");
   if(colorPicker) colorPicker.value=selectedColor;
   window._qrArticuloActual=null;
+  window._qrPrecio1 = 0;
+  actualizarPrecioAutoSuma();
   const msg=document.getElementById("inv-scan-msg");
   if(msg){ msg.style.color=""; msg.innerHTML=""; }
 }
