@@ -451,7 +451,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 #modal-worker .modal{max-width:400px;}
 /* print */
 @media print{
-  body > *:not(.overlay):not(#screen-panel){display:none!important;}
+  body > *:not(.overlay):not(#screen-panel):not(#modal-qr-print):not(#modal-lote-print){display:none!important;}
   .overlay{display:none!important;}
   /* Corte de caja — impresión directa desde la sección */
   #screen-panel{display:block!important;}
@@ -1598,7 +1598,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
