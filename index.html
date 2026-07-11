@@ -519,7 +519,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · v27.6</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · v27.7</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1635,6 +1635,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
@@ -5257,7 +5258,7 @@ function buildInvCard(a){
         <div>
           <div class="proceso-nombre">${a.modelo||"Sin nombre"}</div>
           <div class="proceso-meta">${a.categoria||"—"} · Talla ${a.talla||"—"} · <span style="display:inline-block;width:10px;height:10px;background:${a.colorHex||'#CCC'};border-radius:50%;vertical-align:middle"></span> ${a.colorNombre||"—"}</div>
-          <div class="proceso-meta" style="margin-top:.2rem">Stock: <strong>${a.cantidad||1}</strong> · $${Number(a.precio||0).toLocaleString("es-MX")}</div>
+          <div class="proceso-meta" style="margin-top:.2rem">Stock: <strong>${a.cantidad??1}</strong> · $${Number(a.precio||0).toLocaleString("es-MX")}</div>
           ${a.notas?`<div class="proceso-meta" style="margin-top:.2rem;font-style:italic">${a.notas}</div>`:""}
         </div>
         <div style="display:flex;gap:.4rem;flex-shrink:0">
@@ -5286,7 +5287,7 @@ function verQR(artId){
         <div class="proceso-meta">Talla: <strong>${a.talla||"—"}</strong></div>
         <div class="proceso-meta">Color: <span style="display:inline-block;width:10px;height:10px;background:${a.colorHex||'#CCC'};border-radius:50%;vertical-align:middle"></span> <strong>${a.colorNombre||"—"}</strong></div>
         <div class="proceso-meta">Precio: <strong>$${Number(a.precio||0).toLocaleString("es-MX")}</strong></div>
-        <div class="proceso-meta">Stock: <strong>${a.cantidad||1}</strong></div>
+        <div class="proceso-meta">Stock: <strong>${a.cantidad??1}</strong></div>
         ${a.notas?`<div class="proceso-meta" style="margin-top:.3rem;font-style:italic">${a.notas}</div>`:""}
       </div>
     </div>
@@ -5538,7 +5539,7 @@ function editarArticulo(artId){
   if(invColorBox) invColorBox.style.background = a.colorHex||"#C8A8D0";
   document.getElementById("inv-color-nombre").value = a.colorNombre||"";
   document.getElementById("inv-precio").value = a.precio||"";
-  document.getElementById("inv-cantidad").value = a.cantidad||1;
+  document.getElementById("inv-cantidad").value = a.cantidad??1;
   document.getElementById("inv-notas").value = a.notas||"";
   const fotoPreview = document.getElementById("inv-foto-preview");
   const fotoActual = a.fotoUrl || (a.tieneFoto ? (localStorage.getItem("foto_"+artId)||"") : "");
