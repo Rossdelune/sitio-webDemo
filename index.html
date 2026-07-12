@@ -505,6 +505,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 }
 </style>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<!-- ══ FIREBASE — SOLO AUTHENTICATION (Spark, sin Firestore/Storage por ahora) ══ -->
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 </head>
 <body>
 
@@ -519,7 +522,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v29.4</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v30.0 · Firebase Auth</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1648,10 +1651,38 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
-const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
+
+// ══ FIREBASE — SOLO AUTHENTICATION ══
+// Piver: llena esto localmente con el config real del proyecto Firebase
+// nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
+// NUNCA se comparte en el chat.
+const firebaseConfig = {
+  apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
+  authDomain: "rossdelune2026.firebaseapp.com",
+  projectId: "rossdelune2026",
+  storageBucket: "rossdelune2026.firebasestorage.app",
+  messagingSenderId: "396024136594",
+  appId: "1:396024136594:web:05286384348f6fbbe4374b",
+  measurementId: "G-7Y4N4283TT"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+
+// Firebase Authentication exige formato de correo, pero el formulario de
+// login solo pide "usuario". Este sufijo arma un correo interno a partir
+// del usuario: usuario "gerente" -> correo "gerente@rossdelune.app".
+// No es un correo real, Firebase nunca le envía nada — solo lo usa como
+// identificador único.
+//
+// IMPORTANTE: en Firebase Console → Authentication → Users, cada cuenta
+// que crees ahí debe tener EXACTAMENTE este correo (usuario en minúsculas
+// + este sufijo, sin espacios). Si no coincide letra por letra, el login
+// falla sin mostrar un error claro.
+const EMAIL_DOMAIN = "@rossdelune.app";
 
 let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
@@ -1785,12 +1816,28 @@ async function doLogin(){
   const err=document.getElementById("login-err");
   err.textContent="";btn.innerHTML='<span class="spinner"></span>Verificando...';btn.disabled=true;
   try{
+    // PASO 1 — Firebase Authentication valida usuario+contraseña.
+    // El correo interno se arma con EMAIL_DOMAIN (ver comentario arriba).
+    try{
+      await auth.signInWithEmailAndPassword(u+EMAIL_DOMAIN, p);
+    }catch(authErr){
+      console.error("Firebase Auth error:",authErr);
+      err.textContent="Usuario o contraseña incorrectos.";
+      btn.innerHTML="Entrar";btn.disabled=false;return;
+    }
+    // PASO 2 — Ya autenticado en Firebase, se usa JSONBin solo para
+    // obtener rol/permisos/nombre/bloqueo (ya NO se compara contraseña aquí).
     const data=await loadData();
     allUsers=data.users||[];allClientes=data.clientes||[];window._invData=data.inventario||[];
     allCuentas=await asegurarCuentas(data);
-    const match=allUsers.find(x=>x.user===u&&x.pass===p&&x.role===loginRole);
-    if(!match){err.textContent="Usuario o contraseña incorrectos.";btn.innerHTML="Entrar";btn.disabled=false;return;}
-    if(match.blocked){err.textContent="Cuenta bloqueada. Contacta al administrador.";btn.innerHTML="Entrar";btn.disabled=false;return;}
+    const match=allUsers.find(x=>x.user===u&&x.role===loginRole);
+    if(!match){
+      err.textContent="Usuario válido en Firebase, pero sin registro de rol en el sistema. Contacta al administrador.";
+      btn.innerHTML="Entrar";btn.disabled=false;
+      auth.signOut();
+      return;
+    }
+    if(match.blocked){err.textContent="Cuenta bloqueada. Contacta al administrador.";btn.innerHTML="Entrar";btn.disabled=false;auth.signOut();return;}
     const now=new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});
     if(!match.accesos)match.accesos=[];
     match.accesos.unshift(now);
@@ -1854,6 +1901,7 @@ function enterPanel(){
 }
 
 function doLogout(){
+  auth.signOut().catch(e=>console.error("Firebase signOut error:",e));
   currentUser=null;allUsers=[];allClientes=[];loginRole=null;window._invData=[];_desbloqueosTemp=new Set();window._lotePrint=[];
   document.getElementById("screen-panel").classList.remove("show");
   document.getElementById("screen-welcome").style.display="flex";
