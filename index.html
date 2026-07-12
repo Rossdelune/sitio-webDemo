@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v33.1 · Clave de desbloqueo + alta de colaboradores</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.2 · Clientes en vivo en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1672,6 +1672,7 @@ const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 // nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
 // NUNCA se comparte en el chat.
 const firebaseConfig = {
+ const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
   projectId: "rossdelune2026",
@@ -1680,6 +1681,7 @@ const firebaseConfig = {
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT"
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -1726,18 +1728,48 @@ async function saveData(d){
   await fetch(BIN_URL,{method:"PUT",headers:{"Content-Type":"application/json","X-Master-Key":MASTER_KEY,"X-Access-Key":ACCESS_KEY},body:JSON.stringify(d)});
 }
 
+// ══ CLIENTES EN VIVO EN FIRESTORE ══
+// Reemplaza JSONBin para clientes. Cada cliente = un documento en la
+// colección "clientes", ID = folio (mismo criterio que usó el botón de
+// migración). Inventario/notasSencillas/folioActual/cuentas SIGUEN en
+// JSONBin — solo "clientes" se movió en esta fase.
+async function loadClientesFS(){
+  const snap = await db.collection("clientes").get();
+  return snap.docs.map(d=>d.data());
+}
+// ID del documento: el folio normalmente, pero algunos clientes (notas
+// sencillas, venta directa) no tienen folio — en ese caso se usa su "id".
+function idDocCliente(c){ return String(c.folio!=null && c.folio!=="" ? c.folio : c.id); }
+// Guarda UN cliente (crear o actualizar) — la mayoría de los casos.
+async function saveUnCliente(cliente){
+  await db.collection("clientes").doc(idDocCliente(cliente)).set(cliente);
+}
+// Guarda el array completo — para los pocos casos donde se reescriben varios
+// clientes a la vez. Usa batch (lotes de hasta 450) para no exceder límites.
+async function saveClientesFS(clientesArray){
+  for(let i=0;i<clientesArray.length;i+=450){
+    const chunk=clientesArray.slice(i,i+450);
+    const batch=db.batch();
+    chunk.forEach(c=>batch.set(db.collection("clientes").doc(idDocCliente(c)),c));
+    await batch.commit();
+  }
+}
+async function eliminarClienteFS(cliente){
+  await db.collection("clientes").doc(idDocCliente(cliente)).delete();
+}
+
 // Folio automático — calcula desde el máximo real en la lista de clientes
 async function getNextFolio(){
-  const data = await loadData();
-  if(!data.clientes||data.clientes.length===0) return "0128";
-  const foliosNum = data.clientes.map(c=>parseInt(c.folio,10)||127);
+  const clientes = await loadClientesFS();
+  if(!clientes||clientes.length===0) return "0128";
+  const foliosNum = clientes.map(c=>parseInt(c.folio,10)||127);
   const maxFolio = Math.max(...foliosNum);
   return String(maxFolio+1).padStart(4,"0");
 }
 async function incrementFolio(){
-  const data = await loadData();
-  if(!data.clientes||data.clientes.length===0) return "0128";
-  const foliosNum = data.clientes.map(c=>parseInt(c.folio,10)||127);
+  const clientes = await loadClientesFS();
+  if(!clientes||clientes.length===0) return "0128";
+  const foliosNum = clientes.map(c=>parseInt(c.folio,10)||127);
   const maxFolio = Math.max(...foliosNum);
   return String(maxFolio+1).padStart(4,"0");
 }
@@ -1776,7 +1808,8 @@ async function asegurarCuentas(data){
   if(data.cuentas && data.cuentas.length) return data.cuentas;
   const cuentas = cuentasDefault();
   data.cuentas = cuentas; // mutamos el objeto para que el saveData de doLogin no lo pise
-  await saveData({...data, clientes:data.clientes||[]});
+  const {clientes, ...resto} = data; // clientes ya vive en Firestore, no se vuelve a escribir en JSONBin
+  await saveData(resto);
   return cuentas;
 }
 // Llena un <select> con las cuentas activas tipo "transferencia" (Transferencia cuenta 1, cuenta 2, etc.)
@@ -1873,9 +1906,9 @@ async function doLogin(){
       return;
     }
     if(match.blocked){err.textContent="Cuenta bloqueada. Contacta al administrador.";btn.innerHTML="Entrar";btn.disabled=false;auth.signOut();return;}
-    // Datos de negocio (clientes, inventario) SIGUEN en JSONBin — sin cambios aquí.
-    const data=await loadData();
-    allClientes=data.clientes||[];window._invData=data.inventario||[];
+    // Clientes ahora se leen EN VIVO de Firestore. Inventario/notas/cuentas siguen en JSONBin por ahora.
+    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
+    allClientes=clientesFS;window._invData=data.inventario||[];
     allCuentas=await asegurarCuentas(data);
     const now=new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});
     if(!match.accesos)match.accesos=[];
@@ -2392,15 +2425,13 @@ async function saveCliente(){
   try{
     if(btnSave){btnSave.disabled=true;btnSave.innerHTML='<span class="spinner"></span>Generando folio...';}
     await new Promise(r=>setTimeout(r,0));
-    const data=await loadData();
-    allClientes=data.clientes||[];
-    allUsers=data.users||[];
+    allClientes=await loadClientesFS();
     // Folio calculado desde el máximo real de clientes ya guardados
     const foliosNum=allClientes.map(c=>parseInt(c.folio,10)||127);
     const maxFolio=allClientes.length?Math.max(...foliosNum):127;
     cliente.folio=String(maxFolio+1).padStart(4,"0");
+    await saveUnCliente(cliente);
     allClientes.push(cliente);
-    await saveData({...data,users:allUsers,clientes:allClientes});
     toast("Cliente guardado ✓ — Folio "+cliente.folio);
     if(btnSave){btnSave.disabled=false;btnSave.innerHTML='💾 Guardar cliente';}
     renderClientes();
@@ -2418,12 +2449,13 @@ let _editClienteId = null;
 async function eliminarCliente(id, nombre){
   if(!confirm(`¿Eliminar el cliente "${nombre}"? Esta acción no se puede deshacer.`)) return;
   try{
-    const data = await loadData();
-    allClientes = (data.clientes||[]).filter(c=>c.id!==id);
-    await saveData({...data, clientes:allClientes});
+    allClientes = await loadClientesFS();
+    const cliente = allClientes.find(c=>c.id===id);
+    if(cliente) await eliminarClienteFS(cliente);
+    allClientes = allClientes.filter(c=>c.id!==id);
     renderClientes();
     toast("Cliente eliminado ✓");
-  }catch(e){toast("Error al eliminar","err");}
+  }catch(e){console.error(e);toast("Error al eliminar","err");}
 }
 
 function abrirEditarCliente(id){
@@ -2767,12 +2799,12 @@ async function guardarEdicionCliente(){
   btn.disabled=true; btn.innerHTML='<span class="spinner"></span>Guardando...';
 
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===_editClienteId);
     if(idx===-1){msg.textContent="Error: cliente no encontrado.";btn.disabled=false;btn.innerHTML='💾 Guardar cambios';return;}
 
     const original = allClientes[idx];
+    const folioAnterior = original.folio;
     const hex = document.getElementById("edit-color-picker").value;
 
     let contratoUrl = original.contratoUrl || "";
@@ -2847,12 +2879,19 @@ async function guardarEdicionCliente(){
       editadoEn:     new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
     };
 
-    await saveData({...data, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
+    if(folioAnterior!==folioNormalizado){
+      // El folio cambió → el ID del documento en Firestore también debe
+      // cambiar. Se guarda primero con el folio nuevo (arriba) y luego se
+      // borra el documento viejo, para no perder el registro si algo falla.
+      await eliminarClienteFS({...allClientes[idx], folio:folioAnterior});
+    }
     toast("Cliente actualizado ✓ — Folio "+folioNormalizado);
     window._contratoEditBase64 = null;
     cerrarEditarCliente();
     renderClientes();
   }catch(e){
+    console.error("guardarEdicionCliente error:",e);
     msg.textContent="Error al guardar. Verifica tu conexión.";
   }finally{
     btn.disabled=false; btn.innerHTML='💾 Guardar cambios';
@@ -2880,8 +2919,7 @@ document.addEventListener("click", function(e){
 async function repararEstatusAtascado(clienteId){
   if(!confirm("Esto regresará este cliente a 'Pedido Realizado' Y reiniciará por completo el interruptor de Entrega (para que quede sin marcar), para que puedas marcar la Entrega real desde cero. ¿Continuar?")) return;
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx===-1){ toast("Cliente no encontrado","err"); return; }
     allClientes[idx].estatus = "Pedido Realizado";
@@ -2890,7 +2928,7 @@ async function repararEstatusAtascado(clienteId){
     allClientes[idx].progreso.pedido.entregado = false;
     allClientes[idx].progreso.pedido.entregado_descontado = false;
     allClientes[idx].progreso.pedido.entregado_descontado2 = false;
-    await saveData({...data, users:allUsers, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     toast("Reparado por completo ✓ — el botón de Entrega ya está sin marcar");
     renderClientes();
   }catch(e){ toast("Error al reparar","err"); }
@@ -3192,7 +3230,7 @@ async function migrarAFirestore(){
     for(let i=0;i<clientes.length;i++){
       const c=clientes[i];
       prog.textContent=`Migrando cliente ${i+1} de ${clientes.length}...`;
-      await db.collection("clientes").doc(String(c.folio)).set(c);
+      await db.collection("clientes").doc(idDocCliente(c)).set(c);
     }
 
     // Inventario → colección "inventario", ID de documento = id del artículo
@@ -3567,9 +3605,8 @@ async function guardarAbono(){
   msg.textContent="";
   if(monto && monto>0 && !fecha){msg.textContent="Selecciona la fecha del abono.";return;}
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
-    allUsers = data.users||[];
+    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
+    allClientes = clientesFS;
     allCuentas = data.cuentas||allCuentas;
     const cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
     const idx = allClientes.findIndex(x=>x.id===abonoClienteId);
@@ -3595,12 +3632,12 @@ async function guardarAbono(){
       d.setMonth(d.getMonth()+2);
       c.fechaLimite = d.toISOString().split("T")[0];
     }
-    await saveData({...data,users:allUsers, clientes:allClientes});
+    await saveUnCliente(c);
     closeAbonoModal();
     renderPagosPendientes();
     renderHistorialPagos();
     toast("Abono registrado ✓");
-  } catch(e){msg.textContent="Error al guardar.";}
+  } catch(e){console.error(e);msg.textContent="Error al guardar.";}
 }
 
 function verPagos(id){
@@ -3850,14 +3887,13 @@ async function generarEImprimirNotaSencilla(folio){
     </div>
   </div>`;
 
-  // Guardar en JSONBin — sin folio, a petición de la clienta
+  // notasSencillas sigue en JSONBin; el "cliente" de venta directa ahora va a Firestore
   try{
     const data = await loadData();
     if(!data.notasSencillas) data.notasSencillas=[];
     data.notasSencillas.push({fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
-    // Registrar también en Lista de clientes como venta directa, SIN folio (a petición de la clienta)
-    if(!data.clientes) data.clientes=[];
-    data.clientes.push({
+    await saveData(data);
+    const nuevoCliente={
       id:"NS"+Date.now(),
       esNotaSencilla:true,
       folio:null,
@@ -3869,9 +3905,9 @@ async function generarEImprimirNotaSencilla(folio){
       anticipo:subtotal,
       sispago:"Liquidado",
       items:notaSencillaItems
-    });
-    await saveData(data);
-    allClientes = data.clientes||[];
+    };
+    await saveUnCliente(nuevoCliente);
+    allClientes = await loadClientesFS();
     renderClientes();
   }catch(e){console.error("Error guardando folio",e);}
 
@@ -3999,8 +4035,8 @@ async function togglePasoPedido(clienteId, pasoId){
   c.progreso.pedido[pasoId] = !c.progreso.pedido[pasoId];
   if(pasoId==="entregado" && c.progreso.pedido[pasoId]) c.estatus="Entregado";
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
+    allClientes = clientesFS;
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     let avisoInventario = "";
     if(idx>-1){
@@ -4056,7 +4092,8 @@ async function togglePasoPedido(clienteId, pasoId){
         }
 
         window._invData = inv;
-        await saveData({...data, users:allUsers, clientes:allClientes, inventario:inv});
+        await saveUnCliente(cli);
+        await saveData({...data, inventario:inv});
         renderProceso();
         renderClientes();
         renderInventario();
@@ -4064,20 +4101,19 @@ async function togglePasoPedido(clienteId, pasoId){
         return;
       }
     }
-    await saveData({...data, users:allUsers, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     renderProceso();
   }catch(e){alert("ERROR REAL en togglePasoPedido:\n\n"+e.message+"\n\n"+e.stack);toast("Error al guardar","err");}
 }
 
 async function guardarNotaPedido(clienteId, campo, valor){
-  const data = await loadData();
-  allClientes = data.clientes||[];
+  allClientes = await loadClientesFS();
   const idx = allClientes.findIndex(x=>x.id===clienteId);
   if(idx<0) return;
   if(!allClientes[idx].progreso) allClientes[idx].progreso={};
   if(!allClientes[idx].progreso.pedido) allClientes[idx].progreso.pedido={};
   allClientes[idx].progreso.pedido[campo] = valor;
-  await saveData({...data, users:allUsers, clientes:allClientes});
+  await saveUnCliente(allClientes[idx]);
 }
 
 // ══ AGENDA SEMANAL DE AJUSTES ══
@@ -4191,8 +4227,7 @@ async function renderFormatoAjustesLista(){
   if(!lista) return;
   lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Actualizando datos...</p>';
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
   }catch(e){
     toast("No se pudo actualizar, mostrando últimos datos","err");
   }
@@ -4231,8 +4266,7 @@ function buildFormatoAjustesRow(c){
 async function abrirFormatoAjuste(id){
   let c = allClientes.find(x=>x.id===id);
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     c = allClientes.find(x=>x.id===id) || c;
   }catch(e){
     toast("No se pudo actualizar, mostrando últimos datos","err");
@@ -4511,35 +4545,32 @@ async function togglePasoDiseno(clienteId, pasoId){
   c.progreso.diseno[pasoId] = !c.progreso.diseno[pasoId];
   if(pasoId==="entregado" && c.progreso.diseno[pasoId]) c.estatus="Entregado";
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx>-1){
       allClientes[idx].progreso = c.progreso;
       if(pasoId==="entregado" && c.progreso.diseno[pasoId]) allClientes[idx].estatus="Entregado";
     }
-    await saveData({...data, users:allUsers, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     renderDiseno();
-  }catch(e){toast("Error al guardar","err");}
+  }catch(e){console.error(e);toast("Error al guardar","err");}
 }
 
 async function guardarNotaDiseno(clienteId, campo, valor){
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx<0) return;
     if(!allClientes[idx].progreso) allClientes[idx].progreso={};
     if(!allClientes[idx].progreso.diseno) allClientes[idx].progreso.diseno={};
     allClientes[idx].progreso.diseno[campo] = valor;
-    await saveData({...data, users:allUsers, clientes:allClientes});
-  }catch(e){toast("Error al guardar","err");}
+    await saveUnCliente(allClientes[idx]);
+  }catch(e){console.error(e);toast("Error al guardar","err");}
 }
 
 async function guardarSuministro(clienteId, idx_sumi, campo, valor){
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx<0) return;
     if(!allClientes[idx].progreso) allClientes[idx].progreso={};
@@ -4547,35 +4578,33 @@ async function guardarSuministro(clienteId, idx_sumi, campo, valor){
     if(!allClientes[idx].progreso.diseno.suministros) allClientes[idx].progreso.diseno.suministros=[];
     if(!allClientes[idx].progreso.diseno.suministros[idx_sumi]) allClientes[idx].progreso.diseno.suministros[idx_sumi]={};
     allClientes[idx].progreso.diseno.suministros[idx_sumi][campo] = valor;
-    await saveData({...data, users:allUsers, clientes:allClientes});
-  }catch(e){toast("Error al guardar","err");}
+    await saveUnCliente(allClientes[idx]);
+  }catch(e){console.error(e);toast("Error al guardar","err");}
 }
 
 async function agregarSuministro(clienteId){
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx<0) return;
     if(!allClientes[idx].progreso) allClientes[idx].progreso={};
     if(!allClientes[idx].progreso.diseno) allClientes[idx].progreso.diseno={};
     if(!allClientes[idx].progreso.diseno.suministros) allClientes[idx].progreso.diseno.suministros=[];
     allClientes[idx].progreso.diseno.suministros.push({insumo:"",categoria:"",proveedor:"",estado:"",fechaRecepcion:""});
-    await saveData({...data, users:allUsers, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     renderDiseno();
-  }catch(e){toast("Error al guardar","err");}
+  }catch(e){console.error(e);toast("Error al guardar","err");}
 }
 
 async function eliminarSuministro(clienteId, idx_sumi){
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx<0) return;
     allClientes[idx].progreso.diseno.suministros.splice(idx_sumi,1);
-    await saveData({...data, users:allUsers, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     renderDiseno();
-  }catch(e){toast("Error al guardar","err");}
+  }catch(e){console.error(e);toast("Error al guardar","err");}
 }
 
 // ══ PERMISOS ══
@@ -4727,7 +4756,7 @@ async function saveCuenta(){
       const nuevoId = "cta_"+Date.now();
       allCuentas.push({id:nuevoId, nombre, tipo, banco, digitos, activa:true});
     }
-    await saveData({...data, cuentas:allCuentas, clientes:data.clientes||[]});
+    await saveData({...data, cuentas:allCuentas});
     closeCuentaModal();
     renderCuentasConfig();
     toast("Cuenta guardada ✓");
@@ -4740,7 +4769,7 @@ async function toggleCuentaActiva(id){
     const idx = allCuentas.findIndex(x=>x.id===id);
     if(idx<0) return;
     allCuentas[idx].activa = !allCuentas[idx].activa;
-    await saveData({...data, cuentas:allCuentas, clientes:data.clientes||[]});
+    await saveData({...data, cuentas:allCuentas});
     renderCuentasConfig();
     toast(allCuentas[idx].activa?"Cuenta activada ✓":"Cuenta desactivada ✓");
   }catch(e){ toast("Error al actualizar","err"); }
@@ -4762,9 +4791,9 @@ async function renderCuentasPagos(){
   const tbodySalidas = document.getElementById("cuentas-tbody-salidas");
   tbodyEntradas.innerHTML = '<tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
   tbodySalidas.innerHTML = '<tr><td colspan="7" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
-  let data;
-  try{ data = await loadData(); }catch(e){ tbodyEntradas.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
-  allClientes = data.clientes||[];
+  let data, clientesFS;
+  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ tbodyEntradas.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  allClientes = clientesFS;
   allCuentas = data.cuentas||[];
   allGastos = data.gastos||[];
 
@@ -4842,8 +4871,7 @@ async function renderCuentasPagos(){
 
 async function asignarCuentaEntrada(clienteId, tipo, pagoIndex, cuentaId){
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx<0) return;
     if(tipo==="anticipo"){
@@ -4851,10 +4879,10 @@ async function asignarCuentaEntrada(clienteId, tipo, pagoIndex, cuentaId){
     } else if(tipo==="abono" && pagoIndex!==null && allClientes[idx].pagos && allClientes[idx].pagos[pagoIndex]){
       allClientes[idx].pagos[pagoIndex].cuentaId = cuentaId||null;
     }
-    await saveData({...data, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     toast("Cuenta asignada ✓");
     renderCuentasPagos();
-  }catch(e){ toast("Error al asignar cuenta","err"); }
+  }catch(e){ console.error(e);toast("Error al asignar cuenta","err"); }
 }
 
 // ══ GASTOS (salidas) ══
@@ -4891,7 +4919,7 @@ async function saveGasto(){
       registradoPor: currentUser.user,
       registradoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
     });
-    await saveData({...data, gastos:allGastos, clientes:data.clientes||[]});
+    await saveData({...data, gastos:allGastos});
     closeGastoModal();
     toast("Gasto registrado ✓");
     renderCuentasPagos();
@@ -4902,7 +4930,7 @@ async function eliminarGasto(id){
   try{
     const data = await loadData();
     allGastos = (data.gastos||[]).filter(g=>g.id!==id);
-    await saveData({...data, gastos:allGastos, clientes:data.clientes||[]});
+    await saveData({...data, gastos:allGastos});
     toast("Gasto eliminado ✓");
     renderCuentasPagos();
   }catch(e){ toast("Error al eliminar","err"); }
@@ -4944,8 +4972,8 @@ async function saveAccesorio(){
   if(!tipo){ msg.textContent="Selecciona o escribe el tipo de artículo."; return; }
   if(!cantidad || cantidad<=0){ msg.textContent="Escribe una cantidad válida."; return; }
   try{
-    const data = await loadData();
-    allClientes = data.clientes||allClientes;
+    const [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]);
+    allClientes = clientesFS;
     allAccesorios = data.accesoriosComprados||[];
     const cliente = clienteId ? allClientes.find(c=>c.id===clienteId) : null;
     allAccesorios.push({
@@ -4954,7 +4982,7 @@ async function saveAccesorio(){
       estatus:"Pedido Realizado",
       registradoPor: currentUser.user
     });
-    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    await saveData({...data, accesoriosComprados:allAccesorios});
     closeAccesorioModal();
     toast("Accesorio registrado ✓");
     renderAccesorios();
@@ -4965,7 +4993,7 @@ async function eliminarAccesorio(id){
   try{
     const data = await loadData();
     allAccesorios = (data.accesoriosComprados||[]).filter(a=>a.id!==id);
-    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    await saveData({...data, accesoriosComprados:allAccesorios});
     toast("Registro eliminado ✓");
     renderAccesorios();
   }catch(e){ toast("Error al eliminar","err"); }
@@ -4982,7 +5010,7 @@ async function cambiarEstatusAccesorio(id, nuevoEstatus){
     allAccesorios[idx].estatus = nuevoEstatus;
     allAccesorios[idx].editadoPor = currentUser.user;
     allAccesorios[idx].editadoEn = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
-    await saveData({...data, accesoriosComprados:allAccesorios, clientes:data.clientes||[]});
+    await saveData({...data, accesoriosComprados:allAccesorios});
     toast("Estatus actualizado ✓");
     renderAccesorios();
   }catch(e){ toast("Error al actualizar estatus","err"); }
@@ -4994,9 +5022,9 @@ async function renderAccesorios(){
   if(!periodoInp.value) periodoInp.value = fechaLocalISO().slice(0,7);
   const periodo = periodoInp.value; // "YYYY-MM"
   tbodyPed.innerHTML = '<tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
-  let data;
-  try{ data = await loadData(); }catch(e){ tbodyPed.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
-  allClientes = data.clientes||allClientes;
+  let data, clientesFS;
+  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ tbodyPed.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  allClientes = clientesFS;
   allAccesorios = data.accesoriosComprados||[];
 
   // Tabla de pedidos activos — mismo criterio que "Todos los pedidos" de vestidos:
@@ -5042,9 +5070,9 @@ const COLORES_LINEA = ["#7A4F2A","#27AE60","#2E86AB","#C0392B","#6B4F7A","#D6891
 
 async function initIngresosMensuales(){
   const sel = document.getElementById("ingresos-anio");
-  let data;
-  try{ data = await loadData(); }catch(e){ return; }
-  allClientes = data.clientes||[];
+  let data, clientesFS;
+  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ return; }
+  allClientes = clientesFS;
   allCuentas = data.cuentas||[];
   allGastos = data.gastos||[];
   const anioActual = new Date().getFullYear();
@@ -6428,17 +6456,17 @@ async function cambiarEstatusPedido(clienteId, nuevoEstatus){
   // Cambia el estatus desde la tabla de pedidos y refresca la lista
   // Si el nuevo estatus no es "Pedido Realizado", el cliente desaparece de la tabla
   try{
-    const data = await loadData();
-    allClientes = data.clientes||[];
+    allClientes = await loadClientesFS();
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx===-1) return;
     allClientes[idx].estatus = nuevoEstatus;
     allClientes[idx].editadoPor = currentUser.user;
     allClientes[idx].editadoEn = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
-    await saveData({...data, clientes:allClientes});
+    await saveUnCliente(allClientes[idx]);
     toast("Estatus actualizado ✓");
     renderPedidos();
   }catch(e){
+    console.error(e);
     toast("Error al actualizar estatus","err");
   }
 }
