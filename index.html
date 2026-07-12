@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v32.0 · Botón migración Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v33.0 · Colaboradores en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -3051,8 +3051,12 @@ async function saveClaveDesbloqueo(){
 async function loadWorkers(){
   const tbody=document.getElementById("workers-tbody");
   tbody.innerHTML='<tr><td colspan="5" style="color:#AAA;padding:1rem"><span class="spinner"></span>Cargando...</td></tr>';
-  try{const data=await loadData();allUsers=data.users||[];renderWorkers();}
-  catch(e){tbody.innerHTML='<tr><td colspan="5" style="color:var(--rojo)">Error de conexión.</td></tr>';}
+  try{
+    const snap=await db.collection("users").get();
+    allUsers=snap.docs.map(d=>({...d.data(),user:d.id}));
+    renderWorkers();
+  }
+  catch(e){console.error("Firestore error:",e);tbody.innerHTML='<tr><td colspan="5" style="color:var(--rojo)">Error de conexión.</td></tr>';}
 }
 function renderWorkers(){
   const tbody=document.getElementById("workers-tbody");
@@ -3071,19 +3075,24 @@ function renderWorkers(){
 function openWorkerModal(username){
   editingWorker=username;
   document.getElementById("wm-msg").textContent="";
+  document.getElementById("wm-msg").style.color="var(--cafe)";
+  const passField=document.getElementById("w-pass");
+  const passWrap=passField.closest(".field");
   if(username){
     const u=allUsers.find(x=>x.user===username);
     document.getElementById("wm-badge").textContent="Editar cuenta";
     document.getElementById("wm-title").textContent=u.display;
     document.getElementById("w-display").value=u.display;
     document.getElementById("w-user").value=u.user;
-    document.getElementById("w-pass").value="";
-    document.getElementById("w-pass").placeholder="Dejar vacío para no cambiar";
+    document.getElementById("w-user").disabled=true;
+    if(passWrap)passWrap.style.display="none";
   }else{
     document.getElementById("wm-badge").textContent="Nueva cuenta";
     document.getElementById("wm-title").textContent="Colaborador";
     document.getElementById("w-display").value="";document.getElementById("w-user").value="";
-    document.getElementById("w-pass").value="";document.getElementById("w-pass").placeholder="••••••••";
+    document.getElementById("w-user").disabled=false;
+    if(passWrap)passWrap.style.display="none";
+    document.getElementById("wm-msg").textContent="Antes de guardar, crea la cuenta real en Firebase Authentication (correo usuario@rossdelune.app) — aquí solo se guarda su rol y permisos.";
   }
   document.getElementById("modal-worker").classList.add("open");
 }
@@ -3091,34 +3100,30 @@ function closeWorkerModal(){document.getElementById("modal-worker").classList.re
 async function saveWorker(){
   const display=document.getElementById("w-display").value.trim();
   const user=document.getElementById("w-user").value.trim().toLowerCase();
-  const pass=document.getElementById("w-pass").value;
-  const msg=document.getElementById("wm-msg");msg.textContent="";
-  if(!display||!user){msg.textContent="Nombre y usuario son obligatorios.";return;}
-  if(!editingWorker&&!pass){msg.textContent="La contraseña es obligatoria.";return;}
-  if(pass&&pass.length<6){msg.textContent="Mínimo 6 caracteres.";return;}
+  const msg=document.getElementById("wm-msg");
+  if(!display||!user){msg.style.color="var(--rojo)";msg.textContent="Nombre y usuario son obligatorios.";return;}
   try{
-    const data=await loadData();allUsers=data.users;
     if(editingWorker){
-      const idx=allUsers.findIndex(x=>x.user===editingWorker);
-      allUsers[idx].display=display;allUsers[idx].user=user;
-      if(pass)allUsers[idx].pass=pass;
+      // Solo se actualiza el nombre a mostrar — el usuario (ID del documento) no se
+      // puede cambiar aquí porque está ligado a la cuenta real de Firebase Authentication.
+      await db.collection("users").doc(editingWorker).update({display});
     }else{
-      if(allUsers.find(x=>x.user===user)){msg.textContent="Ese usuario ya existe.";return;}
-      allUsers.push({user,pass,display,role:"worker",blocked:false,accesos:[]});
+      const snap=await db.collection("users").doc(user).get();
+      if(snap.exists){msg.style.color="var(--rojo)";msg.textContent="Ese usuario ya existe en Firestore.";return;}
+      await db.collection("users").doc(user).set({user,display,role:"worker",blocked:false,accesos:[],permisos:{clientes:true,pagos:true,pedidos:true,progreso:true,inventario:true}});
     }
-    await saveData({...data,users:allUsers,clientes:data.clientes||[]});
-    closeWorkerModal();renderWorkers();
-    toast(editingWorker?"Cuenta actualizada ✓":"Cuenta creada ✓");
-  }catch(e){msg.textContent="Error al guardar.";}
+    closeWorkerModal();loadWorkers();
+    toast(editingWorker?"Cuenta actualizada ✓":"Documento creado ✓ — confirma que ya exista también en Firebase Authentication");
+  }catch(e){console.error(e);msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
 }
 async function toggleBlock(username){
   try{
-    const data=await loadData();allUsers=data.users;
     const idx=allUsers.findIndex(x=>x.user===username);
-    allUsers[idx].blocked=!allUsers[idx].blocked;
-    await saveData({...data,users:allUsers,clientes:data.clientes||[]});
-    renderWorkers();toast(allUsers[idx].blocked?"Bloqueado 🔒":"Desbloqueado 🔓");
-  }catch(e){toast("Error de conexión","err");}
+    const nuevoEstado=!allUsers[idx].blocked;
+    await db.collection("users").doc(username).update({blocked:nuevoEstado});
+    allUsers[idx].blocked=nuevoEstado;
+    renderWorkers();toast(nuevoEstado?"Bloqueado 🔒":"Desbloqueado 🔓");
+  }catch(e){console.error(e);toast("Error de conexión","err");}
 }
 
 // ══ HISTORIAL ══
@@ -4606,15 +4611,13 @@ async function guardarPermisos(){
     permisos[s.id] = document.getElementById("perm-"+s.id)?.checked !== false;
   });
   try{
-    const data = await loadData();
-    allUsers = data.users||[];
-    const idx = allUsers.findIndex(x=>x.user===_permisosWorkerActual);
-    if(idx>-1) allUsers[idx].permisos = permisos;
-    await saveData({...data, users:allUsers, clientes:data.clientes||[]});
+    await db.collection("users").doc(_permisosWorkerActual).update({permisos});
+    const idx=allUsers.findIndex(x=>x.user===_permisosWorkerActual);
+    if(idx>-1) allUsers[idx].permisos=permisos;
     msg.style.color="var(--verde)";
     msg.textContent="✓ Permisos guardados";
     toast("Permisos actualizados ✓");
-  }catch(e){msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
+  }catch(e){console.error(e);msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
 }
 
 // ══ CUENTAS — Config (crear/renombrar/desactivar) ══
