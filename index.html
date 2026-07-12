@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v33.0 · Colaboradores en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v33.1 · Clave de desbloqueo + alta de colaboradores</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1683,6 +1683,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
+// Instancia secundaria de Firebase, SOLO para verificar credenciales de un
+// segundo admin (modal de autorización de supervisor) sin cerrar la sesión
+// del usuario que ya inició sesión — signInWithEmailAndPassword en la
+// instancia principal reemplazaría la sesión activa, por eso se usa una
+// instancia aislada aparte.
+const secondaryApp = firebase.initializeApp(firebaseConfig,"secondary");
 // Colección "users" en Firestore: un documento por persona, ID = nombre de usuario.
 // Reemplaza la lectura de JSONBin solo para rol/permisos/nombre/bloqueo del login.
 // JSONBin sigue siendo el backend de datos de negocio (clientes, inventario, pedidos).
@@ -1928,6 +1934,7 @@ function enterPanel(){
   }
   document.getElementById("my-display").value=currentUser.display||"";
   document.getElementById("my-user").value=currentUser.user||"";
+  document.getElementById("my-user").disabled=true;
   renderClientes();
   initColorPicker();
   initAdicionales();
@@ -3003,28 +3010,33 @@ function verCliente(id){toast("Expediente completo · próxima fase 🎀","ok");
 // ══ MI CUENTA ══
 async function saveMyAccount(){
   const display=document.getElementById("my-display").value.trim();
-  const user=document.getElementById("my-user").value.trim().toLowerCase();
   const p1=document.getElementById("my-p1").value;
   const p2=document.getElementById("my-p2").value;
   const msg=document.getElementById("my-msg");
   msg.style.color="var(--rojo)";msg.textContent="";
-  if(!display||!user){msg.textContent="Nombre y usuario son obligatorios.";return;}
+  if(!display){msg.textContent="El nombre es obligatorio.";return;}
   if(p1&&p1!==p2){msg.textContent="Las contraseñas no coinciden.";return;}
   if(p1&&p1.length<6){msg.textContent="Mínimo 6 caracteres.";return;}
   try{
-    const data=await loadData();allUsers=data.users;
-    const dup=allUsers.find(x=>x.user===user&&x.user!==currentUser.user);
-    if(dup){msg.textContent="Ese usuario ya está en uso.";return;}
-    const idx=allUsers.findIndex(x=>x.user===currentUser.user);
-    allUsers[idx].display=display;allUsers[idx].user=user;
-    if(p1)allUsers[idx].pass=p1;
-    currentUser=allUsers[idx];
-    await saveData({...data,users:allUsers,clientes:data.clientes||[]});
-    document.getElementById("top-user").textContent="@"+user;
+    await db.collection("users").doc(currentUser.user).update({display});
+    currentUser.display=display;
+    document.getElementById("top-user").textContent="@"+currentUser.user;
+    if(p1){
+      try{
+        await auth.currentUser.updatePassword(p1);
+      }catch(pwErr){
+        console.error("Error al actualizar contraseña:",pwErr);
+        document.getElementById("my-p1").value="";document.getElementById("my-p2").value="";
+        msg.textContent = pwErr.code==="auth/requires-recent-login"
+          ? "El nombre se guardó. Por seguridad, cierra sesión y vuelve a entrar antes de cambiar tu contraseña."
+          : "El nombre se guardó, pero la contraseña no pudo actualizarse: "+pwErr.message;
+        return;
+      }
+    }
     document.getElementById("my-p1").value="";document.getElementById("my-p2").value="";
     msg.style.color="var(--verde)";msg.textContent="✓ Cambios guardados.";
     toast("Cuenta actualizada ✓");
-  }catch(e){msg.textContent="Error al guardar.";}
+  }catch(e){console.error(e);msg.textContent="Error al guardar.";}
 }
 
 async function saveClaveDesbloqueo(){
@@ -3036,15 +3048,12 @@ async function saveClaveDesbloqueo(){
   if(cd1!==cd2){msg.textContent="Las claves no coinciden.";return;}
   if(cd1.length<6){msg.textContent="Mínimo 6 caracteres.";return;}
   try{
-    const data=await loadData();allUsers=data.users;
-    const idx=allUsers.findIndex(x=>x.user===currentUser.user);
-    allUsers[idx].claveDesbloqueo=cd1;
-    currentUser=allUsers[idx];
-    await saveData({...data,users:allUsers,clientes:data.clientes||[]});
+    await db.collection("users").doc(currentUser.user).update({claveDesbloqueo:cd1});
+    currentUser.claveDesbloqueo=cd1;
     document.getElementById("my-cd1").value="";document.getElementById("my-cd2").value="";
     msg.style.color="var(--verde)";msg.textContent="✓ Clave de desbloqueo guardada.";
     toast("Clave de desbloqueo actualizada ✓");
-  }catch(e){msg.textContent="Error al guardar.";}
+  }catch(e){console.error(e);msg.textContent="Error al guardar.";}
 }
 
 // ══ COLABORADORES ══
@@ -3090,9 +3099,9 @@ function openWorkerModal(username){
     document.getElementById("wm-badge").textContent="Nueva cuenta";
     document.getElementById("wm-title").textContent="Colaborador";
     document.getElementById("w-display").value="";document.getElementById("w-user").value="";
+    document.getElementById("w-pass").value="";
     document.getElementById("w-user").disabled=false;
-    if(passWrap)passWrap.style.display="none";
-    document.getElementById("wm-msg").textContent="Antes de guardar, crea la cuenta real en Firebase Authentication (correo usuario@rossdelune.app) — aquí solo se guarda su rol y permisos.";
+    if(passWrap)passWrap.style.display="";
   }
   document.getElementById("modal-worker").classList.add("open");
 }
@@ -3100,6 +3109,7 @@ function closeWorkerModal(){document.getElementById("modal-worker").classList.re
 async function saveWorker(){
   const display=document.getElementById("w-display").value.trim();
   const user=document.getElementById("w-user").value.trim().toLowerCase();
+  const pass=document.getElementById("w-pass").value;
   const msg=document.getElementById("wm-msg");
   if(!display||!user){msg.style.color="var(--rojo)";msg.textContent="Nombre y usuario son obligatorios.";return;}
   try{
@@ -3108,12 +3118,27 @@ async function saveWorker(){
       // puede cambiar aquí porque está ligado a la cuenta real de Firebase Authentication.
       await db.collection("users").doc(editingWorker).update({display});
     }else{
+      if(!pass){msg.style.color="var(--rojo)";msg.textContent="La contraseña es obligatoria.";return;}
+      if(pass.length<6){msg.style.color="var(--rojo)";msg.textContent="Mínimo 6 caracteres.";return;}
       const snap=await db.collection("users").doc(user).get();
       if(snap.exists){msg.style.color="var(--rojo)";msg.textContent="Ese usuario ya existe en Firestore.";return;}
+      // Se crea la cuenta real en Firebase Authentication usando la instancia
+      // secundaria — así no se cierra la sesión del admin que está creando el colaborador.
+      try{
+        await secondaryApp.auth().createUserWithEmailAndPassword(user+EMAIL_DOMAIN,pass);
+        await secondaryApp.auth().signOut();
+      }catch(authErr){
+        console.error("Error al crear cuenta en Firebase Auth:",authErr);
+        msg.style.color="var(--rojo)";
+        msg.textContent = authErr.code==="auth/email-already-in-use"
+          ? "Ya existe una cuenta de Firebase Authentication con ese usuario."
+          : "No se pudo crear la cuenta: "+authErr.message;
+        return;
+      }
       await db.collection("users").doc(user).set({user,display,role:"worker",blocked:false,accesos:[],permisos:{clientes:true,pagos:true,pedidos:true,progreso:true,inventario:true}});
     }
     closeWorkerModal();loadWorkers();
-    toast(editingWorker?"Cuenta actualizada ✓":"Documento creado ✓ — confirma que ya exista también en Firebase Authentication");
+    toast(editingWorker?"Cuenta actualizada ✓":"Colaborador creado ✓");
   }catch(e){console.error(e);msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
 }
 async function toggleBlock(username){
@@ -5264,13 +5289,31 @@ async function verificarAuthSuper(){
   const err = document.getElementById("auth-super-err");
   err.textContent="";
   try{
-    const data = await loadData();
-    const admin = (data.users||[]).find(x=>x.user===u&&(x.claveDesbloqueo?x.claveDesbloqueo===p:x.pass===p)&&x.role==="admin"&&!x.blocked);
-    if(!admin){err.textContent="Credenciales incorrectas.";return;}
+    // Primero se busca el documento del admin en Firestore para saber si ya
+    // configuró su propia clave de desbloqueo (independiente de su login).
+    const snap = await db.collection("users").doc(u).get();
+    const admin = snap.exists ? snap.data() : null;
+    if(!admin || admin.role!=="admin" || admin.blocked){err.textContent="Credenciales incorrectas.";return;}
+
+    let ok=false;
+    if(admin.claveDesbloqueo){
+      // Tiene clave de desbloqueo propia: se compara directo, sin tocar Firebase Auth.
+      ok = admin.claveDesbloqueo===p;
+    }else{
+      // Sin clave de desbloqueo configurada todavía: se usa su contraseña real
+      // de login como respaldo, verificada contra Firebase Auth (instancia
+      // secundaria, para no cerrar la sesión del usuario actual).
+      try{
+        await secondaryApp.auth().signInWithEmailAndPassword(u+EMAIL_DOMAIN,p);
+        await secondaryApp.auth().signOut();
+        ok=true;
+      }catch(authErr){ok=false;}
+    }
+    if(!ok){err.textContent="Credenciales incorrectas.";return;}
     const cb = _authSuperCallback; // guardamos el callback ANTES de cerrar el modal, que lo pone en null
     cerrarAuthSuper();
     if(cb) cb();
-  }catch(e){err.textContent="Credenciales incorrectas.";}
+  }catch(e){console.error("Error de autorización de supervisor:",e);err.textContent="Credenciales incorrectas.";}
 }
 
 // ══ INVENTARIO ══
