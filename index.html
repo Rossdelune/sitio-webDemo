@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.3 · Clientes + Inventario en vivo en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4 · Clientes + Inventario en vivo en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1662,16 +1662,16 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 // ══ FIREBASE — SOLO AUTHENTICATION ══
-
-
- const firebaseConfig = {
+// Piver: llena esto localmente con el config real del proyecto Firebase
+// nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
+// NUNCA se comparte en el chat.
+const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
   projectId: "rossdelune2026",
@@ -5892,7 +5892,7 @@ async function guardarArticuloInv(){
       fotoUrl: fotoUrl,
       tieneFoto: !!fotoUrl,
       creadoEn: existente ? existente.creadoEn : new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}),
-      actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : undefined
+      actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : null
     };
 
     await saveUnArticulo(articulo);
