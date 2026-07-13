@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4.2 · Fix: reparar restaura inventario</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.6 · Cuentas + Gastos en vivo en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -883,7 +883,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <thead><tr>
               <th>Fecha</th>
               <th>Contrato</th>
-              <th class="col-sticky">Nombre</th>
+              <th>Nombre</th>
               <th>Celular</th>
               <th>Teléfono</th>
               <th>Correo</th>
@@ -1674,9 +1674,7 @@ const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 // ══ FIREBASE — SOLO AUTHENTICATION ══
-// Piver: llena esto localmente con el config real del proyecto Firebase
-// nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
-// NUNCA se comparte en el chat.
+
 
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
@@ -1815,8 +1813,9 @@ function toast(msg,type="ok"){
   setTimeout(()=>t.classList.remove("show"),3000);
 }
 
-// ══ CUENTAS (catálogo) ══
-// Si el bin todavía no tiene data.cuentas, se crean las 4 cuentas base la primera vez.
+// ══ CUENTAS Y GASTOS EN VIVO EN FIRESTORE ══
+// Cuentas: colección "cuentas", un documento por cuenta, ID = su "id" (cta_efectivo, etc.)
+// Gastos: colección "gastos", un documento por gasto, ID = su "id"
 function cuentasDefault(){
   return [
     {id:"cta_efectivo", nombre:"Efectivo", tipo:"efectivo", activa:true},
@@ -1825,13 +1824,30 @@ function cuentasDefault(){
     {id:"cta_transf2",  nombre:"Transferencia cuenta 2", tipo:"transferencia", activa:true}
   ];
 }
-async function asegurarCuentas(data){
-  if(data.cuentas && data.cuentas.length) return data.cuentas;
-  const cuentas = cuentasDefault();
-  data.cuentas = cuentas; // mutamos el objeto para que el saveData de doLogin no lo pise
-  const {clientes, ...resto} = data; // clientes ya vive en Firestore, no se vuelve a escribir en JSONBin
-  await saveData(resto);
-  return cuentas;
+async function loadCuentasFS(){
+  const snap = await db.collection("cuentas").get();
+  return snap.docs.map(d=>d.data());
+}
+async function saveUnaCuenta(cuenta){
+  await db.collection("cuentas").doc(String(cuenta.id)).set(cuenta);
+}
+// Si Firestore todavía no tiene ninguna cuenta, se crean las 4 base la primera vez.
+async function asegurarCuentasFS(){
+  const cuentas = await loadCuentasFS();
+  if(cuentas.length) return cuentas;
+  const defaults = cuentasDefault();
+  await Promise.all(defaults.map(c=>saveUnaCuenta(c)));
+  return defaults;
+}
+async function loadGastosFS(){
+  const snap = await db.collection("gastos").get();
+  return snap.docs.map(d=>d.data());
+}
+async function saveUnGasto(gasto){
+  await db.collection("gastos").doc(String(gasto.id)).set(gasto);
+}
+async function eliminarGastoFS(id){
+  await db.collection("gastos").doc(String(id)).delete();
 }
 // Llena un <select> con las cuentas activas tipo "transferencia" (Transferencia cuenta 1, cuenta 2, etc.)
 function poblarSelectCuentaTransferencia(selectId, valorActual){
@@ -1930,7 +1946,7 @@ async function doLogin(){
     // Clientes e inventario ahora se leen EN VIVO de Firestore. Notas/cuentas siguen en JSONBin por ahora.
     const [data,clientesFS,inventarioFS]=await Promise.all([loadData(),loadClientesFS(),loadInventarioFS()]);
     allClientes=clientesFS;window._invData=inventarioFS;
-    allCuentas=await asegurarCuentas(data);
+    allCuentas=await asegurarCuentasFS();
     const now=new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});
     if(!match.accesos)match.accesos=[];
     match.accesos.unshift(now);
@@ -3014,7 +3030,7 @@ function renderClientes(lista){
     return `<tr>
       <td style="font-size:.74rem;white-space:nowrap">${fContrato}</td>
       <td style="font-size:.74rem;color:#888">${c.esNotaSencilla?"Sin folio":(c.folio||"—")}</td>
-      <td class="col-sticky" style="white-space:nowrap"><strong style="font-weight:500;font-size:.82rem">${c.nombre}</strong></td>
+      <td style="white-space:nowrap"><strong style="font-weight:500;font-size:.82rem">${c.nombre}</strong></td>
       <td style="font-size:.76rem;white-space:nowrap">${c.cel||"—"}</td>
       <td style="font-size:.76rem;white-space:nowrap">${c.tel||"—"}</td>
       <td style="font-size:.74rem">${c.correo||"—"}</td>
@@ -3646,9 +3662,7 @@ async function guardarAbono(){
   msg.textContent="";
   if(monto && monto>0 && !fecha){msg.textContent="Selecciona la fecha del abono.";return;}
   try{
-    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
-    allClientes = clientesFS;
-    allCuentas = data.cuentas||allCuentas;
+    allClientes = await loadClientesFS();
     const cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
     const idx = allClientes.findIndex(x=>x.id===abonoClienteId);
     const c = allClientes[idx];
@@ -4723,8 +4737,8 @@ function renderCuentasConfig(){
   const tbody = document.getElementById("cuentas-config-tbody");
   if(!tbody) return;
   tbody.innerHTML = '<tr><td colspan="4" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
-  loadData().then(data=>{
-    allCuentas = data.cuentas||[];
+  loadCuentasFS().then(cuentas=>{
+    allCuentas = cuentas;
     if(!allCuentas.length){ tbody.innerHTML='<tr><td colspan="4" style="color:#AAA;padding:1rem;">Sin cuentas registradas.</td></tr>'; return; }
     const tipoLabel = {efectivo:"Efectivo", tarjeta:"Tarjeta", transferencia:"Transferencia", otro:"Otro"};
     tbody.innerHTML = allCuentas.map(c=>`<tr>
@@ -4789,34 +4803,35 @@ async function saveCuenta(){
     if(!nombre){ msg.textContent="Escribe un nombre para la cuenta."; return; }
   }
   try{
-    const data = await loadData();
-    allCuentas = data.cuentas||cuentasDefault();
+    allCuentas = await loadCuentasFS();
+    if(!allCuentas.length) allCuentas = cuentasDefault();
     const dup = allCuentas.find(x=>x.nombre.toLowerCase()===nombre.toLowerCase() && x.id!==editingCuenta);
     if(dup){ msg.textContent="Ya existe una cuenta con ese nombre."; return; }
+    let cuentaGuardada;
     if(editingCuenta){
       const idx = allCuentas.findIndex(x=>x.id===editingCuenta);
-      if(idx>-1){ allCuentas[idx].nombre=nombre; allCuentas[idx].tipo=tipo; allCuentas[idx].banco=banco; allCuentas[idx].digitos=digitos; }
+      if(idx>-1){ allCuentas[idx].nombre=nombre; allCuentas[idx].tipo=tipo; allCuentas[idx].banco=banco; allCuentas[idx].digitos=digitos; cuentaGuardada=allCuentas[idx]; }
     } else {
       const nuevoId = "cta_"+Date.now();
-      allCuentas.push({id:nuevoId, nombre, tipo, banco, digitos, activa:true});
+      cuentaGuardada = {id:nuevoId, nombre, tipo, banco, digitos, activa:true};
+      allCuentas.push(cuentaGuardada);
     }
-    await saveData({...data, cuentas:allCuentas});
+    await saveUnaCuenta(cuentaGuardada);
     closeCuentaModal();
     renderCuentasConfig();
     toast("Cuenta guardada ✓");
-  }catch(e){ msg.textContent="Error al guardar."; }
+  }catch(e){ console.error(e); msg.textContent="Error al guardar."; }
 }
 async function toggleCuentaActiva(id){
   try{
-    const data = await loadData();
-    allCuentas = data.cuentas||[];
+    allCuentas = await loadCuentasFS();
     const idx = allCuentas.findIndex(x=>x.id===id);
     if(idx<0) return;
     allCuentas[idx].activa = !allCuentas[idx].activa;
-    await saveData({...data, cuentas:allCuentas});
+    await saveUnaCuenta(allCuentas[idx]);
     renderCuentasConfig();
     toast(allCuentas[idx].activa?"Cuenta activada ✓":"Cuenta desactivada ✓");
-  }catch(e){ toast("Error al actualizar","err"); }
+  }catch(e){ console.error(e); toast("Error al actualizar","err"); }
 }
 
 // ══ CUENTAS — Pagos (saldos, entradas, salidas) ══
@@ -4835,11 +4850,11 @@ async function renderCuentasPagos(){
   const tbodySalidas = document.getElementById("cuentas-tbody-salidas");
   tbodyEntradas.innerHTML = '<tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
   tbodySalidas.innerHTML = '<tr><td colspan="7" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
-  let data, clientesFS;
-  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ tbodyEntradas.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  let clientesFS, cuentasFS, gastosFS;
+  try{ [clientesFS,cuentasFS,gastosFS] = await Promise.all([loadClientesFS(),loadCuentasFS(),loadGastosFS()]); }catch(e){ tbodyEntradas.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
   allClientes = clientesFS;
-  allCuentas = data.cuentas||[];
-  allGastos = data.gastos||[];
+  allCuentas = cuentasFS;
+  allGastos = gastosFS;
 
   // Entradas: anticipos + abonos de todos los clientes
   const entradas = [];
@@ -4956,28 +4971,26 @@ async function saveGasto(){
   if(!monto || monto<=0){ msg.textContent="Escribe un monto válido."; return; }
   if(!cuentaId){ msg.textContent="Selecciona de qué cuenta sale el dinero."; return; }
   try{
-    const data = await loadData();
-    allGastos = data.gastos||[];
-    allGastos.push({
+    const nuevoGasto = {
       id:"gasto_"+Date.now(), fecha, monto, cuentaId, categoria, descripcion,
       registradoPor: currentUser.user,
       registradoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
-    });
-    await saveData({...data, gastos:allGastos});
+    };
+    await saveUnGasto(nuevoGasto);
+    allGastos = [...(allGastos||[]), nuevoGasto];
     closeGastoModal();
     toast("Gasto registrado ✓");
     renderCuentasPagos();
-  }catch(e){ msg.textContent="Error al guardar."; }
+  }catch(e){ console.error(e); msg.textContent="Error al guardar."; }
 }
 async function eliminarGasto(id){
   if(!confirm("¿Eliminar este gasto? Esta acción no se puede deshacer.")) return;
   try{
-    const data = await loadData();
-    allGastos = (data.gastos||[]).filter(g=>g.id!==id);
-    await saveData({...data, gastos:allGastos});
+    await eliminarGastoFS(id);
+    allGastos = (allGastos||[]).filter(g=>g.id!==id);
     toast("Gasto eliminado ✓");
     renderCuentasPagos();
-  }catch(e){ toast("Error al eliminar","err"); }
+  }catch(e){ console.error(e); toast("Error al eliminar","err"); }
 }
 
 // ══ ACCESORIOS (registro de compras online por cliente / venta suelta) ══
@@ -5114,11 +5127,11 @@ const COLORES_LINEA = ["#7A4F2A","#27AE60","#2E86AB","#C0392B","#6B4F7A","#D6891
 
 async function initIngresosMensuales(){
   const sel = document.getElementById("ingresos-anio");
-  let data, clientesFS;
-  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ return; }
+  let clientesFS, cuentasFS, gastosFS;
+  try{ [clientesFS,cuentasFS,gastosFS] = await Promise.all([loadClientesFS(),loadCuentasFS(),loadGastosFS()]); }catch(e){ return; }
   allClientes = clientesFS;
-  allCuentas = data.cuentas||[];
-  allGastos = data.gastos||[];
+  allCuentas = cuentasFS;
+  allGastos = gastosFS;
   const anioActual = new Date().getFullYear();
   const anios = new Set([anioActual]);
   allClientes.forEach(c=>{
