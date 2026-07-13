@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.2 · Clientes en vivo en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.3 · Clientes + Inventario en vivo en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1662,26 +1662,23 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 // ══ FIREBASE — SOLO AUTHENTICATION ══
-// Piver: llena esto localmente con el config real del proyecto Firebase
-// nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
-// NUNCA se comparte en el chat.
 
- const firebaseConfig = {
-  apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
-  authDomain: "rossdelune2026.firebaseapp.com",
-  projectId: "rossdelune2026",
-  storageBucket: "rossdelune2026.firebasestorage.app",
-  messagingSenderId: "396024136594",
-  appId: "1:396024136594:web:05286384348f6fbbe4374b",
-  measurementId: "G-7Y4N4283TT"
+const firebaseConfig = {
+  apiKey: "AIzaSyDEaVniPdpXhbiRT6qYWEJuu9hyTkghnaY",
+  authDomain: "rdl-production.firebaseapp.com",
+  projectId: "rdl-production",
+  storageBucket: "rdl-production.firebasestorage.app",
+  messagingSenderId: "510898405169",
+  appId: "1:510898405169:web:77f36cf5215f82be013a10",
+  measurementId: "G-KENSFN9PPR"
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -1756,6 +1753,21 @@ async function saveClientesFS(clientesArray){
 }
 async function eliminarClienteFS(cliente){
   await db.collection("clientes").doc(idDocCliente(cliente)).delete();
+}
+
+// ══ INVENTARIO EN VIVO EN FIRESTORE ══
+// Reemplaza JSONBin para inventario. Cada artículo = un documento en la
+// colección "inventario", ID = su "id" (INV..., siempre existe, sin casos
+// especiales como el folio null de clientes).
+async function loadInventarioFS(){
+  const snap = await db.collection("inventario").get();
+  return snap.docs.map(d=>d.data());
+}
+async function saveUnArticulo(articulo){
+  await db.collection("inventario").doc(String(articulo.id)).set(articulo);
+}
+async function eliminarArticuloFS(id){
+  await db.collection("inventario").doc(String(id)).delete();
 }
 
 // Folio automático — calcula desde el máximo real en la lista de clientes
@@ -1906,9 +1918,9 @@ async function doLogin(){
       return;
     }
     if(match.blocked){err.textContent="Cuenta bloqueada. Contacta al administrador.";btn.innerHTML="Entrar";btn.disabled=false;auth.signOut();return;}
-    // Clientes ahora se leen EN VIVO de Firestore. Inventario/notas/cuentas siguen en JSONBin por ahora.
-    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
-    allClientes=clientesFS;window._invData=data.inventario||[];
+    // Clientes e inventario ahora se leen EN VIVO de Firestore. Notas/cuentas siguen en JSONBin por ahora.
+    const [data,clientesFS,inventarioFS]=await Promise.all([loadData(),loadClientesFS(),loadInventarioFS()]);
+    allClientes=clientesFS;window._invData=inventarioFS;
     allCuentas=await asegurarCuentas(data);
     const now=new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit",second:"2-digit"});
     if(!match.accesos)match.accesos=[];
@@ -4035,7 +4047,7 @@ async function togglePasoPedido(clienteId, pasoId){
   c.progreso.pedido[pasoId] = !c.progreso.pedido[pasoId];
   if(pasoId==="entregado" && c.progreso.pedido[pasoId]) c.estatus="Entregado";
   try{
-    const [data,clientesFS]=await Promise.all([loadData(),loadClientesFS()]);
+    const [clientesFS,inventarioFS]=await Promise.all([loadClientesFS(),loadInventarioFS()]);
     allClientes = clientesFS;
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     let avisoInventario = "";
@@ -4046,7 +4058,8 @@ async function togglePasoPedido(clienteId, pasoId){
       // Descontar/revertir del inventario al marcar/desmarcar Entrega
       if(pasoId==="entregado"){
         const cli = allClientes[idx];
-        const inv = data.inventario||[];
+        const inv = inventarioFS;
+        const articulosTocados = [];
         const entregando = cli.progreso.pedido.entregado;
 
         // Vestido 1
@@ -4056,6 +4069,7 @@ async function togglePasoPedido(clienteId, pasoId){
             const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
             if(artIdx>-1){
               inv[artIdx].cantidad = Math.max(0, (Number(inv[artIdx].cantidad)||0) - 1);
+              articulosTocados.push(inv[artIdx]);
               cli.progreso.pedido.entregado_descontado = true;
             } else {
               avisoInventario += " (vestido 1: artículo no encontrado en inventario)";
@@ -4065,7 +4079,7 @@ async function togglePasoPedido(clienteId, pasoId){
           }
         } else if(!entregando && yaDescontado && cli.articuloId){
           const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
-          if(artIdx>-1) inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1;
+          if(artIdx>-1){ inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1; articulosTocados.push(inv[artIdx]); }
           cli.progreso.pedido.entregado_descontado = false;
         }
 
@@ -4077,6 +4091,7 @@ async function togglePasoPedido(clienteId, pasoId){
               const artIdx2 = inv.findIndex(a=>a.id===cli.vestido2.articuloId);
               if(artIdx2>-1){
                 inv[artIdx2].cantidad = Math.max(0, (Number(inv[artIdx2].cantidad)||0) - 1);
+                articulosTocados.push(inv[artIdx2]);
                 cli.progreso.pedido.entregado_descontado2 = true;
               } else {
                 avisoInventario += " (vestido 2: artículo no encontrado en inventario)";
@@ -4086,14 +4101,14 @@ async function togglePasoPedido(clienteId, pasoId){
             }
           } else if(!entregando && yaDescontado2 && cli.vestido2.articuloId){
             const artIdx2 = inv.findIndex(a=>a.id===cli.vestido2.articuloId);
-            if(artIdx2>-1) inv[artIdx2].cantidad = (Number(inv[artIdx2].cantidad)||0) + 1;
+            if(artIdx2>-1){ inv[artIdx2].cantidad = (Number(inv[artIdx2].cantidad)||0) + 1; articulosTocados.push(inv[artIdx2]); }
             cli.progreso.pedido.entregado_descontado2 = false;
           }
         }
 
         window._invData = inv;
         await saveUnCliente(cli);
-        await saveData({...data, inventario:inv});
+        await Promise.all(articulosTocados.map(a=>saveUnArticulo(a)));
         renderProceso();
         renderClientes();
         renderInventario();
@@ -5368,8 +5383,7 @@ function renderResumenCategoriasInv(){
 
 async function refrescarInventarioDesdeServidor(){
   try{
-    const data = await loadData();
-    window._invData = data.inventario||[];
+    window._invData = await loadInventarioFS();
   }catch(e){ /* si falla la red, se queda con lo último que había en memoria */ }
 }
 
@@ -5859,8 +5873,7 @@ async function guardarArticuloInv(){
   if(btn) btn.textContent = "💾 Guardando...";
 
   try{
-    const data = await loadData();
-    const inv = data.inventario||[];
+    const inv = await loadInventarioFS();
     const existente = editId ? inv.find(x=>x.id===editId) : null;
 
     const articulo = {
@@ -5880,15 +5893,8 @@ async function guardarArticuloInv(){
       actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : undefined
     };
 
-    let nuevoInv;
-    if(existente){
-      nuevoInv = inv.map(x=>x.id===editId?articulo:x);
-    } else {
-      nuevoInv = [...inv, articulo];
-    }
-
-    await saveData({...data, inventario:nuevoInv});
-    window._invData = nuevoInv;
+    await saveUnArticulo(articulo);
+    window._invData = existente ? inv.map(x=>x.id===editId?articulo:x) : [...inv, articulo];
     toast(existente?"Artículo actualizado ✓":"Artículo guardado ✓");
     goSec("inv-qr");
   }catch(e){console.error("guardarArticuloInv error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
@@ -5900,10 +5906,8 @@ async function guardarArticuloInv(){
 async function eliminarArticulo(artId){
   if(!confirm("¿Eliminar este artículo del inventario?")) return;
   try{
-    const data = await loadData();
-    const inv = (data.inventario||[]).filter(x=>x.id!==artId);
-    await saveData({...data, inventario:inv});
-    window._invData = inv;
+    await eliminarArticuloFS(artId);
+    window._invData = (window._invData||[]).filter(x=>x.id!==artId);
     try{ localStorage.removeItem("foto_"+artId); }catch(e){}
     renderInventario();
     toast("Artículo eliminado ✓");
