@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.7 · NotasSencillas en vivo en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.8 · Migración completa a Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1667,12 +1667,16 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 // ══ FIREBASE — SOLO AUTHENTICATION ══
+// Piver: llena esto localmente con el config real del proyecto Firebase
+// nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
+// NUNCA se comparte en el chat.
 
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
@@ -1855,6 +1859,17 @@ async function agregarNotaSencillaFS(nota){
   const lista = snap.exists ? (snap.data().lista||[]) : [];
   lista.push(nota);
   await ref.set({lista});
+}
+// Accesorios: colección "accesorios", un documento por registro, ID = su "id"
+async function loadAccesoriosFS(){
+  const snap = await db.collection("accesorios").get();
+  return snap.docs.map(d=>d.data());
+}
+async function saveUnAccesorio(acc){
+  await db.collection("accesorios").doc(String(acc.id)).set(acc);
+}
+async function eliminarAccesorioFS(id){
+  await db.collection("accesorios").doc(String(id)).delete();
 }
 // Llena un <select> con las cuentas activas tipo "transferencia" (Transferencia cuenta 1, cuenta 2, etc.)
 function poblarSelectCuentaTransferencia(selectId, valorActual){
@@ -5033,48 +5048,47 @@ async function saveAccesorio(){
   if(!tipo){ msg.textContent="Selecciona o escribe el tipo de artículo."; return; }
   if(!cantidad || cantidad<=0){ msg.textContent="Escribe una cantidad válida."; return; }
   try{
-    const [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]);
+    const [accesoriosFS,clientesFS] = await Promise.all([loadAccesoriosFS(),loadClientesFS()]);
     allClientes = clientesFS;
-    allAccesorios = data.accesoriosComprados||[];
+    allAccesorios = accesoriosFS;
     const cliente = clienteId ? allClientes.find(c=>c.id===clienteId) : null;
-    allAccesorios.push({
+    const nuevo = {
       id:"acc_"+Date.now(), fecha, tipo, cantidad,
       clienteId: clienteId||null, clienteNombre: cliente ? cliente.nombre : "",
       estatus:"Pedido Realizado",
       registradoPor: currentUser.user
-    });
-    await saveData({...data, accesoriosComprados:allAccesorios});
+    };
+    await saveUnAccesorio(nuevo);
+    allAccesorios.push(nuevo);
     closeAccesorioModal();
     toast("Accesorio registrado ✓");
     renderAccesorios();
-  }catch(e){ msg.textContent="Error al guardar."; }
+  }catch(e){ console.error(e); msg.textContent="Error al guardar."; }
 }
 async function eliminarAccesorio(id){
   if(!confirm("¿Eliminar este registro? Esta acción no se puede deshacer.")) return;
   try{
-    const data = await loadData();
-    allAccesorios = (data.accesoriosComprados||[]).filter(a=>a.id!==id);
-    await saveData({...data, accesoriosComprados:allAccesorios});
+    await eliminarAccesorioFS(id);
+    allAccesorios = (allAccesorios||[]).filter(a=>a.id!==id);
     toast("Registro eliminado ✓");
     renderAccesorios();
-  }catch(e){ toast("Error al eliminar","err"); }
+  }catch(e){ console.error(e); toast("Error al eliminar","err"); }
 }
 function estatusClassAcc(e){
   return e==="Entregado"?"s-entregado":e==="En Tienda"?"s-tienda":e==="En Compra"?"s-compra":e==="Recibido"?"s-recibido":"s-pedido";
 }
 async function cambiarEstatusAccesorio(id, nuevoEstatus){
   try{
-    const data = await loadData();
-    allAccesorios = data.accesoriosComprados||[];
+    allAccesorios = await loadAccesoriosFS();
     const idx = allAccesorios.findIndex(a=>a.id===id);
     if(idx===-1) return;
     allAccesorios[idx].estatus = nuevoEstatus;
     allAccesorios[idx].editadoPor = currentUser.user;
     allAccesorios[idx].editadoEn = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
-    await saveData({...data, accesoriosComprados:allAccesorios});
+    await saveUnAccesorio(allAccesorios[idx]);
     toast("Estatus actualizado ✓");
     renderAccesorios();
-  }catch(e){ toast("Error al actualizar estatus","err"); }
+  }catch(e){ console.error(e); toast("Error al actualizar estatus","err"); }
 }
 async function renderAccesorios(){
   const tbodyPed = document.getElementById("acc-pedidos-tbody");
@@ -5083,10 +5097,10 @@ async function renderAccesorios(){
   if(!periodoInp.value) periodoInp.value = fechaLocalISO().slice(0,7);
   const periodo = periodoInp.value; // "YYYY-MM"
   tbodyPed.innerHTML = '<tr><td colspan="6" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>';
-  let data, clientesFS;
-  try{ [data,clientesFS] = await Promise.all([loadData(),loadClientesFS()]); }catch(e){ tbodyPed.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
+  let accesoriosFS, clientesFS;
+  try{ [accesoriosFS,clientesFS] = await Promise.all([loadAccesoriosFS(),loadClientesFS()]); }catch(e){ tbodyPed.innerHTML='<tr><td colspan="6" style="color:var(--rojo)">Error al cargar.</td></tr>'; return; }
   allClientes = clientesFS;
-  allAccesorios = data.accesoriosComprados||[];
+  allAccesorios = accesoriosFS;
 
   // Tabla de pedidos activos — mismo criterio que "Todos los pedidos" de vestidos:
   // solo se muestra mientras el estatus es "Pedido Realizado" o "En Compra".
