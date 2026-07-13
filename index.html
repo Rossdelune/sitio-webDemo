@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.6 · Cuentas + Gastos en vivo en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.7 · NotasSencillas en vivo en Firestore</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1667,14 +1667,12 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
 const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 
 // ══ FIREBASE — SOLO AUTHENTICATION ══
-
 
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
@@ -1848,6 +1846,15 @@ async function saveUnGasto(gasto){
 }
 async function eliminarGastoFS(id){
   await db.collection("gastos").doc(String(id)).delete();
+}
+// notasSencillas: un solo documento con un array (son solo notas de registro, no
+// necesitan ser documentos individuales — se lee/escribe siempre completo).
+async function agregarNotaSencillaFS(nota){
+  const ref = db.collection("notasSencillas").doc("data");
+  const snap = await ref.get();
+  const lista = snap.exists ? (snap.data().lista||[]) : [];
+  lista.push(nota);
+  await ref.set({lista});
 }
 // Llena un <select> con las cuentas activas tipo "transferencia" (Transferencia cuenta 1, cuenta 2, etc.)
 function poblarSelectCuentaTransferencia(selectId, valorActual){
@@ -3942,12 +3949,9 @@ async function generarEImprimirNotaSencilla(folio){
     </div>
   </div>`;
 
-  // notasSencillas sigue en JSONBin; el "cliente" de venta directa ahora va a Firestore
+  // notasSencillas ahora vive en Firestore también, igual que el "cliente" de venta directa
   try{
-    const data = await loadData();
-    if(!data.notasSencillas) data.notasSencillas=[];
-    data.notasSencillas.push({fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
-    await saveData(data);
+    await agregarNotaSencillaFS({fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
     const nuevoCliente={
       id:"NS"+Date.now(),
       esNotaSencilla:true,
