@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4.1 · Múltiples tallas por artículo</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4.2 · Fix: reparar restaura inventario</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -2938,21 +2938,41 @@ document.addEventListener("click", function(e){
 });
 
 async function repararEstatusAtascado(clienteId){
-  if(!confirm("Esto regresará este cliente a 'Pedido Realizado' Y reiniciará por completo el interruptor de Entrega (para que quede sin marcar), para que puedas marcar la Entrega real desde cero. ¿Continuar?")) return;
+  if(!confirm("Esto regresará este cliente a 'Pedido Realizado' Y reiniciará por completo el interruptor de Entrega (para que quede sin marcar), para que puedas marcar la Entrega real desde cero. Si el inventario ya se había descontado, se le regresa el stock. ¿Continuar?")) return;
   try{
-    allClientes = await loadClientesFS();
+    const [clientesFS,inventarioFS] = await Promise.all([loadClientesFS(),loadInventarioFS()]);
+    allClientes = clientesFS;
     const idx = allClientes.findIndex(x=>x.id===clienteId);
     if(idx===-1){ toast("Cliente no encontrado","err"); return; }
-    allClientes[idx].estatus = "Pedido Realizado";
-    if(!allClientes[idx].progreso) allClientes[idx].progreso = {};
-    if(!allClientes[idx].progreso.pedido) allClientes[idx].progreso.pedido = {};
-    allClientes[idx].progreso.pedido.entregado = false;
-    allClientes[idx].progreso.pedido.entregado_descontado = false;
-    allClientes[idx].progreso.pedido.entregado_descontado2 = false;
-    await saveUnCliente(allClientes[idx]);
-    toast("Reparado por completo ✓ — el botón de Entrega ya está sin marcar");
+    const cli = allClientes[idx];
+    if(!cli.progreso) cli.progreso = {};
+    if(!cli.progreso.pedido) cli.progreso.pedido = {};
+
+    // Restaurar inventario si ya se había descontado (vestido 1 y 2)
+    const inv = inventarioFS;
+    const articulosTocados = [];
+    if(cli.progreso.pedido.entregado_descontado && cli.articuloId){
+      const artIdx = inv.findIndex(a=>a.id===cli.articuloId);
+      if(artIdx>-1){ inv[artIdx].cantidad = (Number(inv[artIdx].cantidad)||0) + 1; articulosTocados.push(inv[artIdx]); }
+    }
+    if(cli.progreso.pedido.entregado_descontado2 && cli.vestido2?.articuloId){
+      const artIdx2 = inv.findIndex(a=>a.id===cli.vestido2.articuloId);
+      if(artIdx2>-1){ inv[artIdx2].cantidad = (Number(inv[artIdx2].cantidad)||0) + 1; articulosTocados.push(inv[artIdx2]); }
+    }
+
+    cli.estatus = "Pedido Realizado";
+    cli.progreso.pedido.entregado = false;
+    cli.progreso.pedido.entregado_descontado = false;
+    cli.progreso.pedido.entregado_descontado2 = false;
+    await saveUnCliente(cli);
+    if(articulosTocados.length){
+      await Promise.all(articulosTocados.map(a=>saveUnArticulo(a)));
+      window._invData = inv;
+    }
+    toast("Reparado por completo ✓ — el botón de Entrega ya está sin marcar"+(articulosTocados.length?" y el stock se restauró":""));
     renderClientes();
-  }catch(e){ toast("Error al reparar","err"); }
+    renderInventario();
+  }catch(e){ console.error(e); toast("Error al reparar","err"); }
 }
 
 function renderClientes(lista){
