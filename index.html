@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v37.0.1 · Mensajería WA</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v37.1 · Mensajería WA</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1446,13 +1446,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <div class="section" id="sec-mensajeria-recordatorios">
       <div class="sec-title">Recordatorios de Pago</div>
       <div class="card" style="margin-bottom:.8rem">
-        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:space-between">
-          <div>
-            <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#888">Estado del módulo</div>
-            <div id="wa-modo-badge" style="font-size:.8rem;font-weight:600;margin-top:.2rem">—</div>
-          </div>
-          <button class="btn-primary" style="width:auto;padding:.55rem 1.2rem;font-size:.72rem" onclick="waEnviarTodos()">📤 Enviar todos los pendientes</button>
-        </div>
+        <div id="wa-modo-badge" style="font-size:.8rem;font-weight:600"></div>
       </div>
       <div class="card">
         <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.8rem">Clientes con recordatorio pendiente hoy</div>
@@ -1742,7 +1736,19 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 // Piver: llena esto localmente con el config real del proyecto Firebase
 // (Firebase Console → Configuración del proyecto → tus apps → Web app).
 // NUNCA se comparte en el chat.
-//reemplazar configuración demo
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
+  authDomain: "rossdelune2026.firebaseapp.com",
+  projectId: "rossdelune2026",
+  storageBucket: "rossdelune2026.firebasestorage.app",
+  messagingSenderId: "396024136594",
+  appId: "1:396024136594:web:05286384348f6fbbe4374b",
+  measurementId: "G-7Y4N4283TT"
+};
+
+
+ versión dempo
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -6652,7 +6658,7 @@ let _waConfig = {
   dias: [15, 7, 3, 1]
 };
 
-// Carga la config desde Firestore al iniciar sesión
+// Carga la config desde Firestore al iniciar sesión y dispara envío automático si hay token
 async function waCargarConfig(){
   try{
     const snap = await db.collection("waConfig").doc("config").get();
@@ -6663,7 +6669,47 @@ async function waCargarConfig(){
       _waConfig.numeroSoporte  = d.numeroSoporte  || "529212550819";
       _waConfig.dias           = d.dias           || [15,7,3,1];
     }
+    // Si hay token configurado, disparar envío automático
+    if(waModoReal()) await waEnviarAutomatico();
   }catch(e){ console.warn("waCargarConfig:", e); }
+}
+
+// Envío automático al login — revisa pendientes y envía solo los que no tienen bandera de hoy
+async function waEnviarAutomatico(){
+  const hoy = new Date().toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"});
+  const pendientes = waCalcularPendientes();
+  for(const p of pendientes){
+    const clienteId = p.cliente.id || p.cliente.folio;
+    if(!clienteId) continue;
+    // Revisar si ya se envió hoy para este cliente
+    const bandSnap = await db.collection("waBanderas").doc(clienteId+"_"+hoy.replace(/\//g,"-")).get();
+    if(bandSnap.exists) continue; // Ya enviado hoy, no repetir
+    const numero = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
+    if(!numero) continue;
+    const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
+    const monto      = "$" + p.saldo.toLocaleString("es-MX");
+    const fechaTexto = waFormatearFecha(p.fechaRef);
+    const mensaje    = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
+    try{
+      const url  = `https://graph.facebook.com/v19.0/${_waConfig.phoneNumberId}/messages`;
+      const body = {messaging_product:"whatsapp", to:numeroFinal, type:"text", text:{body:mensaje}};
+      const r = await fetch(url,{
+        method:"POST",
+        headers:{"Content-Type":"application/json","Authorization":"Bearer "+_waConfig.token},
+        body:JSON.stringify(body)
+      });
+      const j = await r.json();
+      if(r.ok){
+        // Guardar bandera para no repetir hoy
+        await db.collection("waBanderas").doc(clienteId+"_"+hoy.replace(/\//g,"-")).set({
+          clienteId, clienteNombre:p.cliente.nombre, fecha:hoy, enviado:true
+        });
+        await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
+      }
+    }catch(e){ console.warn("waEnviarAutomatico error:", p.cliente.nombre, e); }
+    // Pausa entre envíos para no saturar la API
+    await new Promise(r=>setTimeout(r,600));
+  }
 }
 
 // Rellena los campos de la UI de config con los valores actuales
@@ -6745,28 +6791,28 @@ function waCalcularPendientes(){
   return pendientes;
 }
 
-// Renderiza la lista de recordatorios pendientes en la UI
+// Renderiza la lista de recordatorios pendientes — solo informativa, sin botones de envío
 function waMostrarRecordatorios(){
   const lista = document.getElementById("wa-recordatorios-lista");
   const badge = document.getElementById("wa-modo-badge");
+  const esReal = waModoReal();
 
-  if(!waModoReal()){
-    badge.innerHTML = '<span style="color:var(--rojo)">⚠️ Credenciales no configuradas — ve a Configuración WA para ingresar el token.</span>';
-    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Configura el Phone Number ID y el token para habilitar los envíos.</p>';
+  badge.innerHTML = esReal
+    ? '<span style="color:var(--verde)">✅ Mensajería activa — los mensajes se envían automáticamente al iniciar sesión</span>'
+    : '<span style="color:var(--dorado-d)">🔶 Mensajería inactiva — ingresa el token en ⚙️ Configuración WA para activar</span>';
+
+  if(!esReal){
+    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin configuración activa. Los recordatorios se mostrarán aquí una vez que configures las credenciales.</p>';
     return;
   }
 
-  badge.innerHTML = '<span style="color:var(--verde)">✅ Listo — los mensajes se enviarán por WhatsApp</span>';
-
   const pendientes = waCalcularPendientes();
-  window._waPendientes = pendientes;
-
   if(!pendientes.length){
     lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">No hay recordatorios pendientes para hoy según los días configurados.</p>';
     return;
   }
 
-  lista.innerHTML = pendientes.map((p,i)=>{
+  lista.innerHTML = pendientes.map(p=>{
     const monto      = "$" + p.saldo.toLocaleString("es-MX");
     const fechaTexto = waFormatearFecha(p.fechaRef);
     const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
@@ -6783,63 +6829,9 @@ function waMostrarRecordatorios(){
         <span style="font-size:.7rem;background:#E8F8EE;color:var(--verde);border-radius:20px;padding:.18rem .7rem">Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}</span>
       </div>
       <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
-      <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6;margin-bottom:.6rem">${msgTexto}</div>
-      <button class="btn-sec" id="wa-btn-${i}" style="width:100%;font-size:.72rem" onclick="waEnviarUno(${i})">📤 Enviar por WhatsApp</button>
-      <div id="wa-res-${i}" style="font-size:.75rem;margin-top:.4rem"></div>
+      <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6">${msgTexto}</div>
     </div>`;
   }).join("");
-}
-
-// Envía o simula el mensaje de un cliente individual
-async function waEnviarUno(idx){
-  const p = (window._waPendientes||[])[idx];
-  if(!p){ toast("Recordatorio no encontrado","err"); return; }
-  const resDiv = document.getElementById("wa-res-"+idx);
-  const btn    = document.getElementById("wa-btn-"+idx);
-  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Procesando...'; }
-
-  const monto      = "$" + p.saldo.toLocaleString("es-MX");
-  const fechaTexto = waFormatearFecha(p.fechaRef);
-  const mensaje    = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
-  const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
-
-  if(!numero){
-    if(resDiv) resDiv.innerHTML='<span style="color:var(--rojo)">⚠️ El cliente no tiene número registrado.</span>';
-    if(btn){ btn.disabled=false; btn.innerHTML= waModoReal()?"📤 Enviar por WhatsApp":"🔵 Simular envío"; }
-    return;
-  }
-
-  const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
-
-  try{
-    const url  = `https://graph.facebook.com/v19.0/${_waConfig.phoneNumberId}/messages`;
-    const body = { messaging_product:"whatsapp", to:numeroFinal, type:"text", text:{body:mensaje} };
-    const r = await fetch(url,{
-      method:"POST",
-      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_waConfig.token},
-      body:JSON.stringify(body)
-    });
-    const j = await r.json();
-    if(!r.ok) throw new Error(j.error?.message || "Error Meta API");
-    await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
-    if(resDiv) resDiv.innerHTML='<span style="color:var(--verde)">✅ Mensaje enviado correctamente.</span>';
-    if(btn) btn.style.display="none";
-    toast("Mensaje enviado ✓");
-  }catch(e){
-    if(resDiv) resDiv.innerHTML='<span style="color:var(--rojo)">Error: '+e.message+'</span>';
-    if(btn){ btn.disabled=false; btn.innerHTML="📤 Enviar por WhatsApp"; }
-  }
-}
-
-// Envía todos los recordatorios pendientes en secuencia
-async function waEnviarTodos(){
-  const pendientes = window._waPendientes || [];
-  if(!pendientes.length){ toast("No hay recordatorios pendientes","err"); return; }
-  for(let i=0; i<pendientes.length; i++){
-    await waEnviarUno(i);
-    if(i < pendientes.length-1) await new Promise(r=>setTimeout(r,600));
-  }
-  toast("Proceso completado ✓");
 }
 
 // Registra cada envío/simulación en Firestore para el historial
