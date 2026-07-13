@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v36.0 · JSONBin retirado por completo</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v37.0.1 · Mensajería WA</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -610,6 +610,15 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <button class="sub-item" onclick="goSec('inv-qr')">📦 Inventario</button>
         <button class="sub-item" onclick="goSec('inv-buscar')">🔍 Buscar modelo</button>
         <button class="sub-item" onclick="goSec('inv-paquetes')">🎁 Paquetes</button>
+      </div>
+    </div>
+
+    <div style="position:relative;flex-shrink:0">
+      <button class="nav-btn" id="nb-mensajeria" onclick="toggleNav('mensajeria')">📲 Mensajería <span class="arrow">▾</span></button>
+      <div class="subnav" id="sub-mensajeria">
+        <button class="sub-item" onclick="goSec('mensajeria-recordatorios')" id="admin-sub-wa-rec">📋 Recordatorios</button>
+        <button class="sub-item" onclick="goSec('mensajeria-historial')" id="admin-sub-wa-hist">📜 Historial envíos</button>
+        <button class="sub-item" onclick="goSec('mensajeria-config')" id="admin-sub-wa-cfg">⚙️ Configuración WA</button>
       </div>
     </div>
 
@@ -1433,6 +1442,77 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       </div>
     </div>
 
+    <!-- ── MENSAJERÍA: RECORDATORIOS ── -->
+    <div class="section" id="sec-mensajeria-recordatorios">
+      <div class="sec-title">Recordatorios de Pago</div>
+      <div class="card" style="margin-bottom:.8rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap;justify-content:space-between">
+          <div>
+            <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:#888">Estado del módulo</div>
+            <div id="wa-modo-badge" style="font-size:.8rem;font-weight:600;margin-top:.2rem">—</div>
+          </div>
+          <button class="btn-primary" style="width:auto;padding:.55rem 1.2rem;font-size:.72rem" onclick="waEnviarTodos()">📤 Enviar todos los pendientes</button>
+        </div>
+      </div>
+      <div class="card">
+        <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.8rem">Clientes con recordatorio pendiente hoy</div>
+        <div id="wa-recordatorios-lista"><span class="spinner"></span> Calculando...</div>
+      </div>
+    </div>
+
+    <!-- ── MENSAJERÍA: HISTORIAL ── -->
+    <div class="section" id="sec-mensajeria-historial">
+      <div class="sec-title">Historial de Envíos</div>
+      <div class="card">
+        <div id="wa-historial-lista"><span class="spinner"></span> Cargando...</div>
+      </div>
+    </div>
+
+    <!-- ── MENSAJERÍA: CONFIG ── -->
+    <div class="section" id="sec-mensajeria-config">
+      <div class="sec-title">Configuración WhatsApp</div>
+      <div class="card">
+        <div style="background:#FDF8F0;border:1px solid var(--dorado);border-radius:3px;padding:.8rem 1rem;margin-bottom:1.2rem;font-size:.78rem;color:var(--dorado-d)">
+          ⚠️ Cuando obtengas la verificación empresarial de Meta, ingresa aquí el Phone Number ID y el token. Los mensajes automáticos se activarán sin ningún otro cambio.
+        </div>
+        <div class="field">
+          <label>Phone Number ID (Meta Graph API)</label>
+          <input type="text" id="wa-cfg-number-id" placeholder="Ej: 123456789012345">
+        </div>
+        <div class="field">
+          <label>Token de acceso (Meta Graph API)</label>
+          <input type="password" id="wa-cfg-token" placeholder="EAAxxxxxxxxxxxxxxx">
+        </div>
+        <div class="field">
+          <label>Número de soporte (WhatsApp Business atención a clientes)</label>
+          <input type="text" id="wa-cfg-numero-soporte" placeholder="Ej: 529212550819">
+          <div style="font-size:.68rem;color:#AAA;margin-top:.3rem">Formato internacional sin + ni espacios. Este número aparecerá en el mensaje para que el cliente pueda escribir directamente.</div>
+        </div>
+        <div class="field">
+          <label>Días de anticipación para recordatorios</label>
+          <input type="text" id="wa-cfg-dias" placeholder="Ej: 15,7,3,1">
+          <div style="font-size:.68rem;color:#AAA;margin-top:.3rem">Separados por coma. Se envía recordatorio cuando faltan exactamente esos días para la fecha límite de pago.</div>
+        </div>
+        <div class="msg-err" id="wa-cfg-msg" style="margin-top:.5rem"></div>
+        <button class="btn-primary" onclick="waGuardarConfig()" style="margin-top:.8rem">💾 Guardar configuración</button>
+      </div>
+
+      <div class="card" style="margin-top:.8rem">
+        <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.8rem">Vista previa del mensaje</div>
+        <div style="background:#F9F5EF;border-radius:3px;padding:.7rem .9rem;font-size:.82rem;white-space:pre-line;color:var(--texto);line-height:1.6" id="wa-preview-mensaje">—</div>
+      </div>
+
+      <div class="card" style="margin-top:.8rem">
+        <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.6rem">Envío de prueba</div>
+        <div class="field">
+          <label>Número de prueba (con código de país)</label>
+          <input type="text" id="wa-test-numero" placeholder="Ej: 529210000000">
+        </div>
+        <button class="btn-sec" onclick="waEnviarPrueba()" style="width:100%;margin-top:.4rem">📨 Enviar mensaje de prueba</button>
+        <div id="wa-test-resultado" style="margin-top:.6rem;font-size:.78rem"></div>
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -1658,16 +1738,20 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 <script>
 // ══ CONFIG ══
 
-const firebaseConfig = {
-  apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
-  authDomain: "rossdelune2026.firebaseapp.com",
-  projectId: "rossdelune2026",
-  storageBucket: "rossdelune2026.firebasestorage.app",
-  messagingSenderId: "396024136594",
-  appId: "1:396024136594:web:05286384348f6fbbe4374b",
-  measurementId: "G-7Y4N4283TT"
-};
+// ══ FIREBASE — AUTHENTICATION + FIRESTORE (único backend, JSONBin retirado) ══
+// Piver: llena esto localmente con el config real del proyecto Firebase
+// (Firebase Console → Configuración del proyecto → tus apps → Web app).
+// NUNCA se comparte en el chat.
 
+const firebaseConfig = {
+  apiKey: "AIzaSyDEaVniPdpXhbiRT6qYWEJuu9hyTkghnaY",
+  authDomain: "rdl-production.firebaseapp.com",
+  projectId: "rdl-production",
+  storageBucket: "rdl-production.firebasestorage.app",
+  messagingSenderId: "510898405169",
+  appId: "1:510898405169:web:77f36cf5215f82be013a10",
+  measurementId: "G-KENSFN9PPR"
+};
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -1938,7 +2022,7 @@ async function doLogin(){
     match.accesos.unshift(now);
     try{await db.collection("users").doc(u).update({accesos:match.accesos});}
     catch(updErr){console.error("No se pudo registrar el acceso en Firestore:",updErr);}
-    currentUser=match;closeLogin();enterPanel();
+    currentUser=match;closeLogin();waCargarConfig();enterPanel();
   }catch(e){console.error("doLogin error:",e);err.textContent="Error de conexión: "+e.message;btn.innerHTML="Entrar";btn.disabled=false;}
 }
 
@@ -1953,6 +2037,7 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="none";
     document.getElementById("admin-sub-hist").style.display="none";
     document.getElementById("admin-sub-micuenta").style.display="none";
+    document.getElementById("nb-mensajeria").style.display="none";
     // Mostrar botones del nav — bloqueados con 🔒, permitidos normal
     const permisos = currentUser.permisos||{};
     SECCIONES_CTRL.forEach(s=>{
@@ -1978,6 +2063,7 @@ function enterPanel(){
     document.getElementById("admin-sub-cuentas").style.display="";
     document.getElementById("admin-sub-hist").style.display="";
     document.getElementById("admin-sub-micuenta").style.display="";
+    document.getElementById("nb-mensajeria").style.display="";
     SECCIONES_CTRL.forEach(s=>{
       const nb = document.getElementById("nb-"+s.id);
       if(!nb) return;
@@ -2011,7 +2097,7 @@ function doLogout(){
 }
 
 // ══ NAVEGACIÓN ══
-const NAVS=["clientes","pagos","pedidos","progreso","inventario","config"];
+const NAVS=["clientes","pagos","pedidos","progreso","inventario","mensajeria","config"];
 function toggleNav(name){
   const isOpen=document.getElementById("sub-"+name).classList.contains("open");
   NAVS.forEach(n=>{
@@ -2097,6 +2183,9 @@ function goSec(id){
   if(id==="inv-nuevo"){limpiarFormInv();}
   if(id==="lista-clientes"){renderClientes();}
   if(id==="nuevo-cliente"){limpiarFormularioCliente();}
+  if(id==="mensajeria-recordatorios"){waMostrarRecordatorios();}
+  if(id==="mensajeria-historial"){waLoadHistorial();}
+  if(id==="mensajeria-config"){waCargarConfigUI();}
 }
 
 function limpiarFormularioCliente(){
@@ -6562,6 +6651,264 @@ function generarContrato(c){
   </div>`;
 }
 
+
+// ══ MENSAJERÍA WHATSAPP ══
+// Config en memoria — se carga desde Firestore al hacer login
+let _waConfig = {
+  phoneNumberId: "",
+  token: "",
+  numeroSoporte: "529212550819",
+  dias: [15, 7, 3, 1]
+};
+
+// Carga la config desde Firestore al iniciar sesión
+async function waCargarConfig(){
+  try{
+    const snap = await db.collection("waConfig").doc("config").get();
+    if(snap.exists){
+      const d = snap.data();
+      _waConfig.phoneNumberId  = d.phoneNumberId  || "";
+      _waConfig.token          = d.token          || "";
+      _waConfig.numeroSoporte  = d.numeroSoporte  || "529212550819";
+      _waConfig.dias           = d.dias           || [15,7,3,1];
+    }
+  }catch(e){ console.warn("waCargarConfig:", e); }
+}
+
+// Rellena los campos de la UI de config con los valores actuales
+function waCargarConfigUI(){
+  document.getElementById("wa-cfg-number-id").value      = _waConfig.phoneNumberId  || "";
+  document.getElementById("wa-cfg-token").value          = _waConfig.token          || "";
+  document.getElementById("wa-cfg-numero-soporte").value = _waConfig.numeroSoporte  || "529212550819";
+  document.getElementById("wa-cfg-dias").value           = (_waConfig.dias || [15,7,3,1]).join(",");
+  document.getElementById("wa-cfg-msg").textContent      = "";
+  document.getElementById("wa-test-resultado").textContent = "";
+  // Mostrar vista previa del mensaje con datos de ejemplo
+  document.getElementById("wa-preview-mensaje").textContent =
+    waGenerarMensaje("María García", "$3,500.00", "15 de agosto de 2026");
+}
+
+// Guarda la config en Firestore
+async function waGuardarConfig(){
+  const msg = document.getElementById("wa-cfg-msg");
+  msg.style.color = "var(--rojo)"; msg.textContent = "";
+  const phoneNumberId = document.getElementById("wa-cfg-number-id").value.trim();
+  const token         = document.getElementById("wa-cfg-token").value.trim();
+  const numeroSoporte = document.getElementById("wa-cfg-numero-soporte").value.trim().replace(/\D/g,"");
+  const diasRaw       = document.getElementById("wa-cfg-dias").value.trim();
+  const dias = diasRaw.split(",").map(d=>parseInt(d.trim(),10)).filter(d=>!isNaN(d)&&d>0);
+  if(!numeroSoporte){ msg.textContent="Ingresa el número de soporte."; return; }
+  if(!dias.length)  { msg.textContent="Ingresa al menos un día de anticipación válido."; return; }
+  try{
+    await db.collection("waConfig").doc("config").set({phoneNumberId, token, numeroSoporte, dias});
+    _waConfig = { phoneNumberId, token, numeroSoporte, dias };
+    msg.style.color = "var(--verde)";
+    msg.textContent = "✓ Configuración guardada correctamente.";
+    toast("Configuración WA guardada ✓");
+    // Actualizar vista previa con el nuevo número de soporte
+    document.getElementById("wa-preview-mensaje").textContent =
+      waGenerarMensaje("María García", "$3,500.00", "15 de agosto de 2026");
+  }catch(e){ msg.textContent = "Error al guardar: " + e.message; }
+}
+
+// Devuelve true si el módulo tiene token y phone ID configurados (modo real)
+function waModoReal(){
+  return !!(_waConfig.token && _waConfig.phoneNumberId);
+}
+
+// Calcula días restantes entre hoy y una fecha ISO yyyy-mm-dd
+function waDiasRestantes(fechaISO){
+  if(!fechaISO) return null;
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const dest = new Date(fechaISO + "T12:00:00"); dest.setHours(0,0,0,0);
+  return Math.round((dest - hoy) / (1000*60*60*24));
+}
+
+// Formatea una fecha ISO a texto legible en español
+function waFormatearFecha(fechaISO){
+  if(!fechaISO) return "—";
+  const d = new Date(fechaISO + "T12:00:00");
+  return d.toLocaleDateString("es-MX",{day:"numeric",month:"long",year:"numeric"});
+}
+
+// Genera el mensaje exacto que pidió Kateryn
+function waGenerarMensaje(nombre, monto, fechaTexto){
+  const soporte = _waConfig.numeroSoporte || "529212550819";
+  return `Hola ${nombre} 👋\nEsperamos que te encuentres muy bien. Te recordamos que tienes un pago pendiente de ${monto}, con fecha límite el ${fechaTexto}.\nTe agradeceríamos mucho realizar tu pago antes de la fecha indicada para mantener tu cuenta al corriente y evitar cargos adicionales.\nSi tienes alguna duda o necesitas apoyo, estamos para ayudarte: https://wa.me/${soporte}\n🌙 Ross de Lune.`;
+}
+
+// Calcula qué clientes necesitan recordatorio hoy según los días configurados
+function waCalcularPendientes(){
+  const pendientes = [];
+  const dias = _waConfig.dias || [15,7,3,1];
+  (allClientes||[]).forEach(c=>{
+    if(c.estatus === "Entregado") return;
+    const saldo = Number(c.precio||0) - Number(c.anticipo||0);
+    if(saldo <= 0) return; // Sin saldo pendiente, no aplica
+    const fechaRef = c.fechaLimite || c.entrega;
+    const dr = waDiasRestantes(fechaRef);
+    if(dr !== null && dias.includes(dr)){
+      pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef });
+    }
+  });
+  return pendientes;
+}
+
+// Renderiza la lista de recordatorios pendientes en la UI
+function waMostrarRecordatorios(){
+  const lista = document.getElementById("wa-recordatorios-lista");
+  const badge = document.getElementById("wa-modo-badge");
+
+  if(!waModoReal()){
+    badge.innerHTML = '<span style="color:var(--rojo)">⚠️ Credenciales no configuradas — ve a Configuración WA para ingresar el token.</span>';
+    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Configura el Phone Number ID y el token para habilitar los envíos.</p>';
+    return;
+  }
+
+  badge.innerHTML = '<span style="color:var(--verde)">✅ Listo — los mensajes se enviarán por WhatsApp</span>';
+
+  const pendientes = waCalcularPendientes();
+  window._waPendientes = pendientes;
+
+  if(!pendientes.length){
+    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">No hay recordatorios pendientes para hoy según los días configurados.</p>';
+    return;
+  }
+
+  lista.innerHTML = pendientes.map((p,i)=>{
+    const monto      = "$" + p.saldo.toLocaleString("es-MX");
+    const fechaTexto = waFormatearFecha(p.fechaRef);
+    const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
+    const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
+    const numDisplay = numero
+      ? numero
+      : '<span style="color:var(--rojo)">Sin número registrado</span>';
+    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
+        <div>
+          <strong style="font-size:.9rem">${p.cliente.nombre||"—"}</strong>
+          <span style="font-size:.72rem;color:#888;margin-left:.5rem">Folio ${p.cliente.folio||"—"}</span>
+        </div>
+        <span style="font-size:.7rem;background:#E8F8EE;color:var(--verde);border-radius:20px;padding:.18rem .7rem">Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}</span>
+      </div>
+      <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
+      <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6;margin-bottom:.6rem">${msgTexto}</div>
+      <button class="btn-sec" id="wa-btn-${i}" style="width:100%;font-size:.72rem" onclick="waEnviarUno(${i})">📤 Enviar por WhatsApp</button>
+      <div id="wa-res-${i}" style="font-size:.75rem;margin-top:.4rem"></div>
+    </div>`;
+  }).join("");
+}
+
+// Envía o simula el mensaje de un cliente individual
+async function waEnviarUno(idx){
+  const p = (window._waPendientes||[])[idx];
+  if(!p){ toast("Recordatorio no encontrado","err"); return; }
+  const resDiv = document.getElementById("wa-res-"+idx);
+  const btn    = document.getElementById("wa-btn-"+idx);
+  if(btn){ btn.disabled=true; btn.innerHTML='<span class="spinner"></span> Procesando...'; }
+
+  const monto      = "$" + p.saldo.toLocaleString("es-MX");
+  const fechaTexto = waFormatearFecha(p.fechaRef);
+  const mensaje    = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
+  const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
+
+  if(!numero){
+    if(resDiv) resDiv.innerHTML='<span style="color:var(--rojo)">⚠️ El cliente no tiene número registrado.</span>';
+    if(btn){ btn.disabled=false; btn.innerHTML= waModoReal()?"📤 Enviar por WhatsApp":"🔵 Simular envío"; }
+    return;
+  }
+
+  const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
+
+  try{
+    const url  = `https://graph.facebook.com/v19.0/${_waConfig.phoneNumberId}/messages`;
+    const body = { messaging_product:"whatsapp", to:numeroFinal, type:"text", text:{body:mensaje} };
+    const r = await fetch(url,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_waConfig.token},
+      body:JSON.stringify(body)
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error?.message || "Error Meta API");
+    await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
+    if(resDiv) resDiv.innerHTML='<span style="color:var(--verde)">✅ Mensaje enviado correctamente.</span>';
+    if(btn) btn.style.display="none";
+    toast("Mensaje enviado ✓");
+  }catch(e){
+    if(resDiv) resDiv.innerHTML='<span style="color:var(--rojo)">Error: '+e.message+'</span>';
+    if(btn){ btn.disabled=false; btn.innerHTML="📤 Enviar por WhatsApp"; }
+  }
+}
+
+// Envía todos los recordatorios pendientes en secuencia
+async function waEnviarTodos(){
+  const pendientes = window._waPendientes || [];
+  if(!pendientes.length){ toast("No hay recordatorios pendientes","err"); return; }
+  for(let i=0; i<pendientes.length; i++){
+    await waEnviarUno(i);
+    if(i < pendientes.length-1) await new Promise(r=>setTimeout(r,600));
+  }
+  toast("Proceso completado ✓");
+}
+
+// Registra cada envío/simulación en Firestore para el historial
+async function waRegistrarEnvio(clienteId, clienteNombre, numero, mensaje, estado){
+  try{
+    await db.collection("waMensajes").add({
+      clienteId, clienteNombre, numero, mensaje, estado,
+      fecha: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"})
+    });
+  }catch(e){ console.warn("waRegistrarEnvio:", e); }
+}
+
+// Carga el historial de mensajes desde Firestore
+async function waLoadHistorial(){
+  const cont = document.getElementById("wa-historial-lista");
+  cont.innerHTML = '<span class="spinner"></span> Cargando...';
+  try{
+    const snap = await db.collection("waMensajes").orderBy("fecha","desc").limit(100).get();
+    if(snap.empty){ cont.innerHTML='<p style="color:#AAA;font-size:.82rem">Sin mensajes registrados aún.</p>'; return; }
+    cont.innerHTML = snap.docs.map(doc=>{
+      const d = doc.data();
+      const colorEstado = d.estado==="enviado" ? "var(--verde)" : d.estado==="simulado" ? "var(--dorado-d)" : "var(--rojo)";
+      const iconoEstado = d.estado==="enviado" ? "✅" : d.estado==="simulado" ? "🔶" : "❌";
+      return `<div style="border-bottom:1px solid var(--borde);padding:.6rem 0;display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;flex-wrap:wrap">
+        <div>
+          <div style="font-size:.82rem;font-weight:600">${d.clienteNombre||"—"}</div>
+          <div style="font-size:.72rem;color:#888">${d.numero||"—"} · ${d.fecha||"—"}</div>
+        </div>
+        <span style="font-size:.72rem;color:${colorEstado};white-space:nowrap">${iconoEstado} ${d.estado}</span>
+      </div>`;
+    }).join("");
+  }catch(e){ cont.innerHTML='<p style="color:var(--rojo)">Error al cargar historial: '+e.message+'</p>'; }
+}
+
+// Envía un mensaje de prueba al número indicado en la UI
+async function waEnviarPrueba(){
+  const res    = document.getElementById("wa-test-resultado");
+  const numero = document.getElementById("wa-test-numero").value.trim().replace(/\D/g,"");
+  res.textContent = "";
+  if(!numero){ res.innerHTML='<span style="color:var(--rojo)">Ingresa un número de prueba.</span>'; return; }
+  const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
+  const mensaje = waGenerarMensaje("María García (prueba)", "$3,500.00", "15 de agosto de 2026");
+  if(!waModoReal()){
+    res.innerHTML='<span style="color:var(--rojo)">⚠️ Configura el Phone Number ID y el token antes de enviar.</span>';
+    return;
+  }
+  try{
+    const url  = `https://graph.facebook.com/v19.0/${_waConfig.phoneNumberId}/messages`;
+    const body = { messaging_product:"whatsapp", to:numeroFinal, type:"text", text:{body:mensaje} };
+    const r = await fetch(url,{
+      method:"POST",
+      headers:{"Content-Type":"application/json","Authorization":"Bearer "+_waConfig.token},
+      body:JSON.stringify(body)
+    });
+    const j = await r.json();
+    if(!r.ok) throw new Error(j.error?.message||"Error Meta API");
+    res.innerHTML='<span style="color:var(--verde)">✅ Mensaje de prueba enviado a '+numeroFinal+'</span>';
+    toast("Prueba enviada ✓");
+  }catch(e){ res.innerHTML='<span style="color:var(--rojo)">Error: '+e.message+'</span>'; }
+}
 
 </script>
 
