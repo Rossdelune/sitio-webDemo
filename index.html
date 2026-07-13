@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4 · Clientes + Inventario en vivo en Firestore</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v34.4.1 · Múltiples tallas por artículo</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1305,6 +1305,11 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="fi"><label>Precio ($)</label><input type="number" id="inv-precio" placeholder="0"></div>
           <div class="fi"><label>Cantidad en stock</label><input type="number" id="inv-cantidad" placeholder="1" value="1"></div>
         </div>
+        <div id="inv-tallas-extra"></div>
+        <div id="inv-tallas-extra-btn-wrap" style="margin:.2rem 0 1rem">
+          <button type="button" class="paso-btn" onclick="agregarFilaTalla()">+ Agregar otra talla</button>
+          <p style="color:#AAA;font-size:.7rem;margin-top:.3rem">Mismo modelo, color, precio y foto — cada talla que agregues se guarda como un artículo independiente, con su propio QR.</p>
+        </div>
         <div class="fi"><label>Notas / descripción</label><input type="text" id="inv-notas" placeholder="Detalles adicionales..."></div>
 
         <!-- Foto -->
@@ -1662,6 +1667,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const BIN_ID     = "6a3de8e6f5f4af5e293228f2";
 const MASTER_KEY = "$2a$10$mKCTBP96l4oINrx2Z3uXbOTEGW/08f1Gd2g.ndODEp1eLEqu7p83W";
 const ACCESS_KEY = "$2a$10$9VfaQRuaCX9fyS6yiO1dhuh5DeDt89523dzWLH/.6jPYvy3wOcPv.";
@@ -1671,6 +1677,7 @@ const BIN_URL    = `https://api.jsonbin.io/v3/b/${BIN_ID}`;
 // Piver: llena esto localmente con el config real del proyecto Firebase
 // nuevo (Firebase Console → Configuración del proyecto → tus apps → Web app).
 // NUNCA se comparte en el chat.
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -5795,6 +5802,20 @@ async function subirDocumentoCloudinary(base64){
   return data.secure_url;
 }
 
+function agregarFilaTalla(){
+  const cont = document.getElementById("inv-tallas-extra");
+  const div = document.createElement("div");
+  div.className = "fg2 fila-talla-extra";
+  div.style.alignItems = "flex-end";
+  div.innerHTML = `
+    <div class="fi"><label>Talla</label><input type="text" class="extra-talla" placeholder="XS, S, M, L..."></div>
+    <div class="fi" style="display:flex;gap:.5rem;align-items:flex-end">
+      <div style="flex:1"><label>Cantidad</label><input type="number" class="extra-cantidad" placeholder="1" value="1"></div>
+      <button type="button" class="ic-btn" onclick="this.closest('.fila-talla-extra').remove()" title="Quitar esta talla">🗑️</button>
+    </div>`;
+  cont.appendChild(div);
+}
+
 function limpiarFormInv(){
   ["inv-categoria","inv-marca","inv-modelo","inv-talla","inv-color-nombre","inv-precio","inv-cantidad","inv-notas"].forEach(id=>{
     const el=document.getElementById(id);
@@ -5808,6 +5829,9 @@ function limpiarFormInv(){
   document.getElementById("inv-foto-input").value="";
   document.getElementById("inv-msg").textContent="";
   window._editandoArticuloId=null;
+  document.getElementById("inv-tallas-extra").innerHTML="";
+  const btnExtraWrap=document.getElementById("inv-tallas-extra-btn-wrap");
+  if(btnExtraWrap) btnExtraWrap.style.display="";
   const titulo=document.getElementById("inv-nuevo-title");
   if(titulo) titulo.textContent="Nuevo artículo";
   const btn=document.getElementById("btn-guardar-articulo");
@@ -5819,6 +5843,9 @@ function editarArticulo(artId){
   if(!a) return;
   goSec("inv-nuevo"); // dispara limpiarFormInv(); llenamos los campos después
   window._editandoArticuloId = artId;
+  // Al editar, siempre es UN solo artículo — no se pueden agregar más tallas aquí.
+  const btnExtraWrap=document.getElementById("inv-tallas-extra-btn-wrap");
+  if(btnExtraWrap) btnExtraWrap.style.display="none";
   document.getElementById("inv-categoria").value = a.categoria||"";
   document.getElementById("inv-marca").value = a.marca||"";
   document.getElementById("inv-modelo").value = a.modelo||"";
@@ -5850,7 +5877,7 @@ async function guardarArticuloInv(){
   const editId = window._editandoArticuloId||null;
   const fotoPreview = document.getElementById("inv-foto-preview");
   const fotoActual = fotoPreview.style.display!=="none" ? fotoPreview.src : "";
-  const artId = editId || ("INV"+Date.now());
+  const artIdBase = editId || ("INV"+Date.now());
 
   const btn = document.getElementById("btn-guardar-articulo");
   const btnTextoOriginal = btn ? btn.textContent : "";
@@ -5874,30 +5901,69 @@ async function guardarArticuloInv(){
 
   if(btn) btn.textContent = "💾 Guardando...";
 
+  // Campos compartidos entre todas las tallas del mismo modelo
+  const camposComunes = {
+    categoria,
+    marca: document.getElementById("inv-marca").value.trim(),
+    modelo,
+    colorHex: document.getElementById("inv-color-picker").value,
+    colorNombre: document.getElementById("inv-color-nombre").value.trim(),
+    precio: document.getElementById("inv-precio").value,
+    notas: document.getElementById("inv-notas").value.trim(),
+    fotoUrl: fotoUrl,
+    tieneFoto: !!fotoUrl
+  };
+
   try{
     const inv = await loadInventarioFS();
-    const existente = editId ? inv.find(x=>x.id===editId) : null;
 
-    const articulo = {
-      id: artId,
-      categoria,
-      marca: document.getElementById("inv-marca").value.trim(),
-      modelo,
+    if(editId){
+      // Edición: siempre UN solo artículo, igual que siempre — no se agregan tallas aquí.
+      const existente = inv.find(x=>x.id===editId);
+      const articulo = {
+        id: editId,
+        ...camposComunes,
+        talla: document.getElementById("inv-talla").value.trim(),
+        cantidad: document.getElementById("inv-cantidad").value||1,
+        creadoEn: existente ? existente.creadoEn : new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}),
+        actualizadoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
+      };
+      await saveUnArticulo(articulo);
+      window._invData = inv.map(x=>x.id===editId?articulo:x);
+      toast("Artículo actualizado ✓");
+      goSec("inv-qr");
+      return;
+    }
+
+    // Creación: la talla principal + las tallas adicionales que se hayan agregado.
+    // Cada talla queda como un artículo independiente en Firestore, con su propio
+    // ID (y por lo tanto su propio QR), compartiendo el resto de los datos.
+    const filas = [{
       talla: document.getElementById("inv-talla").value.trim(),
-      colorHex: document.getElementById("inv-color-picker").value,
-      colorNombre: document.getElementById("inv-color-nombre").value.trim(),
-      precio: document.getElementById("inv-precio").value,
-      cantidad: document.getElementById("inv-cantidad").value||1,
-      notas: document.getElementById("inv-notas").value.trim(),
-      fotoUrl: fotoUrl,
-      tieneFoto: !!fotoUrl,
-      creadoEn: existente ? existente.creadoEn : new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}),
-      actualizadoEn: existente ? new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"}) : null
-    };
+      cantidad: document.getElementById("inv-cantidad").value||1
+    }];
+    document.querySelectorAll("#inv-tallas-extra .fila-talla-extra").forEach(fila=>{
+      const t = fila.querySelector(".extra-talla").value.trim();
+      const c = fila.querySelector(".extra-cantidad").value||1;
+      if(t) filas.push({talla:t, cantidad:c});
+    });
 
-    await saveUnArticulo(articulo);
-    window._invData = existente ? inv.map(x=>x.id===editId?articulo:x) : [...inv, articulo];
-    toast(existente?"Artículo actualizado ✓":"Artículo guardado ✓");
+    const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
+    const nuevos = [];
+    for(let i=0;i<filas.length;i++){
+      const articulo = {
+        id: i===0 ? artIdBase : artIdBase+"_"+i,
+        ...camposComunes,
+        talla: filas[i].talla,
+        cantidad: filas[i].cantidad,
+        creadoEn: ahora,
+        actualizadoEn: null
+      };
+      await saveUnArticulo(articulo);
+      nuevos.push(articulo);
+    }
+    window._invData = [...inv, ...nuevos];
+    toast(nuevos.length>1 ? `${nuevos.length} artículos guardados ✓ (uno por talla)` : "Artículo guardado ✓");
     goSec("inv-qr");
   }catch(e){console.error("guardarArticuloInv error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
   finally{
