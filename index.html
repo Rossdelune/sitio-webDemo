@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v37.1 · Mensajería WA</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v38.0 · Historial de abonos</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1625,6 +1625,10 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <span>Saldo pendiente:</span><strong id="abono-saldo" style="color:var(--rojo)">$0</strong>
       </div>
     </div>
+    <div id="abono-historial-wrap" style="margin-bottom:1rem">
+      <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.5rem">Historial de abonos</div>
+      <div id="abono-historial-lista" style="display:flex;flex-direction:column;gap:6px;max-height:180px;overflow-y:auto"></div>
+    </div>
     <div style="border:1px solid #E8DDD0;border-radius:3px;padding:.7rem;margin-bottom:1rem">
       <div style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.6rem">Gestión de vencimiento</div>
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem">
@@ -1732,11 +1736,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 <script>
 // ══ CONFIG ══
 
-// ══ FIREBASE — AUTHENTICATION + FIRESTORE (único backend, JSONBin retirado) ══
-// Piver: llena esto localmente con el config real del proyecto Firebase
-// (Firebase Console → Configuración del proyecto → tus apps → Web app).
-// NUNCA se comparte en el chat.
-
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -1744,8 +1743,9 @@ const firebaseConfig = {
   storageBucket: "rossdelune2026.firebasestorage.app",
   messagingSenderId: "396024136594",
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
-  measurementId: "G-7Y4N4283TT"
+  measurementId: "G-7Y4N4283TT",
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -3415,7 +3415,7 @@ function renderPagosPendientes(){
       <td style="font-size:.76rem;color:var(--rojo);font-weight:${saldoFinal>0?'500':'400'}">$${saldoFinal.toLocaleString("es-MX")}</td>
       <td style="font-size:.74rem">${c.fechaLimite?new Date(c.fechaLimite+"T12:00:00").toLocaleDateString("es-MX"):"—"}</td>
       <td>${estadoHTML}</td>
-      <td><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Registrar abono">➕</button></td>
+      <td><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Registrar abono">➕</button><button class="ic-btn" onclick="abrirAbonoModal('${c.id}')" title="Ver historial de abonos">📝</button></td>
     </tr>`;
   });
   if(rows.length){
@@ -3628,7 +3628,43 @@ function abrirAbonoModal(id){
   document.getElementById("abono-proroga-dias").value = c.prorogaDias||"";
   document.getElementById("fi-abono-proroga-dias").style.display = c.proroga?"block":"none";
   document.getElementById("abono-interes").value = c.interes||"no";
+  renderHistorialAbonoModal(c);
   document.getElementById("modal-abono").classList.add("open");
+}
+function renderHistorialAbonoModal(c){
+  const wrap = document.getElementById("abono-historial-lista");
+  if(!wrap) return;
+  const movs = [];
+  if(Number(c.anticipo||0) > 0){
+    movs.push({
+      label:"Anticipo", monto:Number(c.anticipo),
+      fecha:c.fechaAnticipo||c.fecha||null,
+      metodo:c.fpago||null, ref:null, por:c.creadoPor||null
+    });
+  }
+  (c.pagos||[]).forEach((p,i)=>{
+    movs.push({
+      label:"Abono "+(i+1), monto:Number(p.monto||0),
+      fecha:p.fecha||null, metodo:p.metodo||null,
+      ref:p.ref||null, por:p.registradoPor||null
+    });
+  });
+  if(!movs.length){
+    wrap.innerHTML = '<div style="font-size:.76rem;color:#AAA;text-align:center;padding:.5rem 0">Sin abonos registrados</div>';
+    return;
+  }
+  wrap.innerHTML = movs.map(m=>{
+    const fechaTxt = m.fecha ? new Date(m.fecha+"T12:00:00").toLocaleDateString("es-MX") : "—";
+    const detalle = [m.metodo, m.ref].filter(Boolean).join(" · ");
+    const porTxt = m.por ? " · Reg. "+m.por : "";
+    return '<div style="display:flex;justify-content:space-between;align-items:center;background:#F9F5EF;border-radius:6px;padding:.5rem .6rem">'
+      + '<div>'
+      + '<div style="font-size:.76rem;color:var(--texto)">'+m.label+'</div>'
+      + '<div style="font-size:.66rem;color:#AAA">'+fechaTxt+(detalle?" · "+detalle:"")+porTxt+'</div>'
+      + '</div>'
+      + '<div style="font-size:.78rem;font-weight:500;color:var(--verde)">$'+m.monto.toLocaleString("es-MX")+'</div>'
+      + '</div>';
+  }).join("");
 }
 function toggleAbonoProroga(){
   const chk = document.getElementById("abono-proroga").checked;
