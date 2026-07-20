@@ -523,7 +523,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v38.0 · Historial de abonos</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras demov40.0-editarTallas · </p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -5924,9 +5924,10 @@ function editarArticulo(artId){
   if(!a) return;
   goSec("inv-nuevo"); // dispara limpiarFormInv(); llenamos los campos después
   window._editandoArticuloId = artId;
-  // Al editar, siempre es UN solo artículo — no se pueden agregar más tallas aquí.
+  // Ahora también se pueden agregar tallas nuevas al editar, sin importar
+  // qué tan viejo sea el modelo.
   const btnExtraWrap=document.getElementById("inv-tallas-extra-btn-wrap");
-  if(btnExtraWrap) btnExtraWrap.style.display="none";
+  if(btnExtraWrap) btnExtraWrap.style.display="";
   document.getElementById("inv-categoria").value = a.categoria||"";
   document.getElementById("inv-marca").value = a.marca||"";
   document.getElementById("inv-modelo").value = a.modelo||"";
@@ -5999,7 +6000,7 @@ async function guardarArticuloInv(){
     const inv = await loadInventarioFS();
 
     if(editId){
-      // Edición: siempre UN solo artículo, igual que siempre — no se agregan tallas aquí.
+      // Actualiza el artículo que se está editando
       const existente = inv.find(x=>x.id===editId);
       const articulo = {
         id: editId,
@@ -6010,8 +6011,37 @@ async function guardarArticuloInv(){
         actualizadoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
       };
       await saveUnArticulo(articulo);
-      window._invData = inv.map(x=>x.id===editId?articulo:x);
-      toast("Artículo actualizado ✓");
+      let todos = inv.map(x=>x.id===editId?articulo:x);
+
+      // Tallas nuevas agregadas durante esta edición — se crean como artículos independientes
+      const filasExtra = [];
+      document.querySelectorAll("#inv-tallas-extra .fila-talla-extra").forEach(fila=>{
+        const t = fila.querySelector(".extra-talla").value.trim();
+        const c = fila.querySelector(".extra-cantidad").value||1;
+        if(t) filasExtra.push({talla:t, cantidad:c});
+      });
+
+      if(filasExtra.length){
+        const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
+        const nuevos = [];
+        for(let i=0;i<filasExtra.length;i++){
+          const nuevoArt = {
+            id: "INV"+Date.now()+"_x"+i,
+            ...camposComunes,
+            talla: filasExtra[i].talla,
+            cantidad: filasExtra[i].cantidad,
+            creadoEn: ahora,
+            actualizadoEn: null
+          };
+          await saveUnArticulo(nuevoArt);
+          nuevos.push(nuevoArt);
+        }
+        todos = [...todos, ...nuevos];
+        toast(`Artículo actualizado y ${nuevos.length} talla(s) nueva(s) agregada(s) ✓`);
+      } else {
+        toast("Artículo actualizado ✓");
+      }
+      window._invData = todos;
       goSec("inv-qr");
       return;
     }
