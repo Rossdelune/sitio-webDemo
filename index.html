@@ -748,10 +748,12 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div class="fg2">
           <div class="fi"><label>Elaboración</label>
             <select id="c-elab">
-              <option value="">Seleccionar...</option>
-              <option>Vestido en tienda</option>
-              <option>Sobre pedido</option>
-              <option>Sobre diseño</option>
+              <option value="">Seleccionar elaboración *</option>
+              <option value="Pedido Realizado">Pedido Realizado</option>
+              <option value="En Compra">En Compra</option>
+              <option value="En Tienda">En Tienda</option>
+              <option value="Recibido">Recibido</option>
+              <option value="Entregado">Entregado</option>
             </select>
           </div>
           <div class="fi"><label>Sistema de pago</label>
@@ -826,15 +828,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <input type="text" id="c-ref-anticipo" placeholder="Número de transferencia...">
         </div>
         <div class="fi"><label>Observaciones / Requisiciones especiales</label><textarea id="c-obs" placeholder="Detalles especiales del pedido..."></textarea></div>
-        <div class="fi">
-          <label>Estatus</label>
-          <select id="c-estatus">
-            <option>Pedido realizado</option>
-            <option>Medidas tomadas</option>
-            <option>Recibido</option>
-            <option disabled title="Se marca automáticamente al presionar el botón de Entrega en Proceso Pedido">Entregado</option>
-          </select>
-        </div>
+
         <div class="fi">
           <label>Autorización uso de imagen</label>
           <select id="c-imagen">
@@ -1745,7 +1739,6 @@ const firebaseConfig = {
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT",
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -2195,9 +2188,9 @@ function limpiarFormularioCliente(){
     if(el.tagName==="SELECT") el.selectedIndex=0;
     else el.value="";
   });
-  // Estatus e imagen vuelven a su default
-  const estatus=document.getElementById("c-estatus");
-  if(estatus) estatus.selectedIndex=0;
+  // Elaboración e imagen vuelven a su default
+  const elab=document.getElementById("c-elab");
+  if(elab) elab.selectedIndex=0;
   const imagen=document.getElementById("c-imagen");
   if(imagen) imagen.selectedIndex=0;
   // Limpiar y ocultar campo cuenta anticipo
@@ -2474,6 +2467,8 @@ async function saveCliente(){
   const btnSave=document.getElementById("btn-guardar-cliente");
   msg.textContent="";
   if(!nombre){msg.textContent="El nombre es obligatorio.";return;}
+  const elabVal=document.getElementById("c-elab").value;
+  if(!elabVal){msg.textContent="La elaboración del vestido es un campo obligatorio.";return;}
   const colorHex=document.getElementById("color-picker").value;
   const colorName=document.getElementById("c-color-name").value.trim()||colorHex;
   const cliente={
@@ -2508,7 +2503,7 @@ async function saveCliente(){
     refAnticipo:document.getElementById("c-ref-anticipo").value.trim(),
     entrega:document.getElementById("c-entrega").value,
     observaciones:document.getElementById("c-obs").value.trim(),
-    estatus:document.getElementById("c-estatus").value,
+    estatus:document.getElementById("c-elab").value,
     imagen:document.getElementById("c-imagen").value,
     articuloId:window._qrArticuloActual||null,
     vestido2: document.getElementById("bloque-vestido2").style.display!=="none" && document.getElementById("c-modelo2").value.trim()
