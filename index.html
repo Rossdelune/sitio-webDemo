@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Ross de Lune</title>
@@ -523,7 +524,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras demov40.0-editarTallas · </p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · demov 41.0-columnaTalla </p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -927,11 +928,11 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div style="overflow-x:auto;">
           <table class="tbl">
             <thead><tr>
-              <th>#</th><th>Nombre</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Color</th>
+              <th>#</th><th>Nombre</th><th>Tipo</th><th>Marca</th><th>Modelo</th><th>Talla</th><th>Color</th>
               <th>Entrega</th><th>Total</th><th>Anticipo</th><th>Saldo</th><th>Estatus</th>
             </tr></thead>
             <tbody id="pedidos-tbody">
-              <tr><td colspan="11" style="color:#AAA;padding:1.5rem;text-align:center;">Sin pedidos registrados aún.</td></tr>
+              <tr><td colspan="12" style="color:#AAA;padding:1.5rem;text-align:center;">Sin pedidos registrados aún.</td></tr>
             </tbody>
           </table>
         </div>
@@ -6601,7 +6602,7 @@ function renderPedidos(){
   // Filtra solo los pendientes — "Pedido Realizado" o sin estatus
   const pendientes=allClientes.filter(c=>!c.esNotaSencilla && (!c.estatus||c.estatus==="Pedido Realizado"||c.estatus==="Pedido realizado"||c.estatus==="En Compra"));
   if(!pendientes.length){
-    tbody.innerHTML='<tr><td colspan="11" style="color:#AAA;padding:1.5rem;text-align:center;">Sin pedidos pendientes 🎀</td></tr>';return;
+    tbody.innerHTML='<tr><td colspan="12" style="color:#AAA;padding:1.5rem;text-align:center;">Sin pedidos pendientes 🎀</td></tr>';return;
   }
   const tipos={"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado","":" — "};
   tbody.innerHTML=pendientes.map(c=>{
@@ -6617,6 +6618,7 @@ function renderPedidos(){
       <td style="font-size:.76rem">${tipos[c.tipo]||c.tipo||"—"}</td>
       <td style="font-size:.76rem">${c.marca||"—"}</td>
       <td style="font-size:.76rem">${c.modelo||"—"}</td>
+      <td style="font-size:.76rem">${c.talla||"—"}</td>
       <td><span class="color-dot" style="background:${c.color?.hex||'#CCC'}"></span><span style="font-size:.74rem">${c.color?.nombre||"—"}</span></td>
       <td style="font-size:.74rem">${c.entrega?new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX"):"—"}</td>
       <td style="font-size:.76rem">$${total.toLocaleString("es-MX")}</td>
