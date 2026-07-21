@@ -552,7 +552,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v42.0 · Cotizador</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v43.0 · Fecha de evento</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -834,7 +834,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
             <label>Fecha límite de pago <span style="font-size:.65rem;color:var(--dorado-d)">(auto: +2 meses)</span></label>
             <input type="date" id="c-fecha-limite">
           </div>
-          <div class="fi"><label>Fecha de entrega</label><input type="date" id="c-entrega"></div>
+          <div class="fi"><label>Fecha de evento</label><input type="date" id="c-entrega"></div>
         </div>
         <div class="fg2" id="fi-parcialidades" style="display:none">
           <div class="fi">
@@ -1076,7 +1076,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <table class="tbl">
             <thead><tr>
               <th>#</th><th>Nombre</th><th>Tipo</th><th>Modelo</th><th>Color</th>
-              <th>Fecha de entrega</th><th>Total</th><th>Saldo</th><th>Estatus</th>
+              <th>Fecha de evento</th><th>Total</th><th>Saldo</th><th>Estatus</th>
             </tr></thead>
             <tbody id="entregas-tbody">
               <tr><td colspan="9" style="color:#AAA;padding:1.5rem;text-align:center;">Selecciona un mes o rango y presiona "Filtrar"</td></tr>
@@ -1844,7 +1844,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -1854,6 +1853,7 @@ const firebaseConfig = {
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT",
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -4244,7 +4244,7 @@ function buildProcesoCard(c){
     </div>
     <div style="margin-top:.5rem">${pasos}</div>
     ${buildDiagnosticoInventarioCliente(c)}
-    <div class="proceso-entrega">📅 Entrega: <strong>${entrega}</strong></div>
+    <div class="proceso-entrega">📅 Fecha de evento: <strong>${entrega}</strong></div>
   </div>`;
 }
 
@@ -6626,7 +6626,7 @@ function generarFormatoEntrega(c){
         <tr>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Color</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Fecha de entrega</strong></td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Fecha de evento</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem"><strong>${fEntrega}</strong></td>
         </tr>
         <tr>
@@ -6654,7 +6654,7 @@ function generarFormatoEntrega(c){
           </td>
           <td style="width:10%"></td>
           <td style="width:45%;text-align:center;padding-top:40pt;border-top:1pt solid #1a1a1a">
-            <div style="font-size:8.5pt">Fecha de entrega</div>
+            <div style="font-size:8.5pt">Fecha de evento</div>
             <div style="font-size:7.5pt;color:#888;margin-top:3pt">${fEntrega}</div>
           </td>
         </tr>
@@ -7078,7 +7078,7 @@ function generarContrato(c){
         <td style="width:50%;padding:0 10pt"><div style="border-top:1pt solid #333;padding-top:3pt;margin-top:60pt">NOMBRE Y FIRMA DEL PROVEEDOR</div><div style="color:#666;margin-top:2pt">Ross de Lune</div></td>
       </tr>
     </table>
-    <div style="text-align:center;margin-top:4pt;font-size:6.5pt;color:#AAA">Fecha de entrega acordada: ${fE}</div>
+    <div style="text-align:center;margin-top:4pt;font-size:6.5pt;color:#AAA">Fecha de evento acordada: ${fE}</div>
   </div>`;
 }
 
@@ -7533,7 +7533,7 @@ async function waEnviarPrueba(){
     <div class="field" id="edit-fi-parcialidades"><label>Parcialidades (días)</label><input type="number" id="edit-parcialidades" placeholder="30"></div>
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem">
       <div class="field"><label>Fecha límite pago</label><input type="date" id="edit-fecha-limite"></div>
-      <div class="field"><label>Fecha de entrega</label><input type="date" id="edit-entrega"></div>
+      <div class="field"><label>Fecha de evento</label><input type="date" id="edit-entrega"></div>
     </div>
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Otros</div>
     <div class="field"><label>Estatus</label>
