@@ -493,18 +493,18 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     align-items:center!important;justify-content:center!important;
   }
   #modal-qr-print.printing .no-print{display:none!important;}
-  #modal-contrato.open,#modal-nota.open,#modal-nota-sencilla.open,#modal-entrega.open,#modal-ajustes.open{
+  #modal-contrato.open,#modal-nota.open,#modal-nota-sencilla.open,#modal-entrega.open,#modal-ajustes.open,#modal-cotizacion-print.open{
     display:block!important;position:fixed!important;
     inset:0!important;overflow:auto!important;
     background:#fff!important;z-index:9999!important;
   }
-  #modal-contrato.open>div,#modal-nota.open>div,#modal-nota-sencilla.open>div,#modal-entrega.open>div,#modal-ajustes.open>div{
+  #modal-contrato.open>div,#modal-nota.open>div,#modal-nota-sencilla.open>div,#modal-entrega.open>div,#modal-ajustes.open>div,#modal-cotizacion-print.open>div{
     box-shadow:none!important;padding:.5cm!important;max-width:100%!important;
   }
-  #modal-contrato .no-print,#modal-nota .no-print,#modal-nota-sencilla .no-print,#modal-entrega .no-print,#modal-ajustes .no-print{
+  #modal-contrato .no-print,#modal-nota .no-print,#modal-nota-sencilla .no-print,#modal-entrega .no-print,#modal-ajustes .no-print,#modal-cotizacion-print .no-print{
     display:none!important;
   }
-  #modal-contrato button,#modal-nota button,#modal-nota-sencilla button,#modal-entrega button,#modal-ajustes button,
+  #modal-contrato button,#modal-nota button,#modal-nota-sencilla button,#modal-entrega button,#modal-ajustes button,#modal-cotizacion-print button,
   .no-print{display:none!important;}
   @page{margin:.4cm;size:letter portrait;}
   #contrato-content p{margin-bottom:3pt!important;margin-top:0!important;}
@@ -552,7 +552,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v43.0 · Fecha de evento</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.1 · CotizadorNube con caducidad</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1589,6 +1589,11 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <div class="fi"><label>Fecha de la cita</label><input type="date" id="cq-fecha-cita"></div>
           <div class="fi"><label>Fecha del evento (XV / boda)</label><input type="date" id="cq-fecha-evento"></div>
         </div>
+        <div class="fi" style="max-width:260px">
+          <label>Vigencia de la cotización (hasta)</label>
+          <input type="date" id="cq-vigencia">
+          <div style="font-size:.68rem;color:#AAA;margin-top:.3rem">Al vencerse se marca ⏰ Expirada, pero nunca deja de aparecer en el registro.</div>
+        </div>
         <div class="fi"><label>Anotaciones</label><textarea id="cq-obs" placeholder="Detalles del prospecto..."></textarea></div>
       </div>
 
@@ -1796,6 +1801,26 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
   </div>
 </div>
 
+<!-- MODAL COTIZACIÓN IMPRIMIBLE -->
+<div class="overlay" id="modal-cotizacion-print" style="z-index:300;align-items:flex-start;padding:0;overflow-y:auto">
+  <div style="background:#fff;width:100%;max-width:780px;margin:0 auto;padding:2rem;position:relative;min-height:100vh">
+    <div class="no-print" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;gap:.5rem;flex-wrap:wrap">
+      <button onclick="cqCerrarPrint()" style="background:none;border:1px solid #DDD;padding:.4rem .9rem;border-radius:2px;cursor:pointer;font-size:.75rem">✕ Cerrar</button>
+      <button onclick="cqEjecutarImpresion()" style="background:var(--dorado-g);color:#FFF8EC;border:none;padding:.5rem 1.2rem;border-radius:2px;cursor:pointer;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase">🖨️ Imprimir</button>
+    </div>
+    <div id="cotizacion-print-content"></div>
+    <div class="no-print" style="margin-top:1.5rem;border-top:1px dashed #DDD;padding-top:1rem">
+      <label style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.4rem">Respaldo escaneado (opcional)</label>
+      <div style="font-size:.72rem;color:#AAA;margin-bottom:.5rem">Una vez impresa, si la firman o sellan, puedes escanearla y subirla aquí como respaldo — igual que el contrato firmado.</div>
+      <input type="file" id="cq-respaldo-input" accept="image/*,.pdf" onchange="cqPreviewRespaldo(this)" style="display:none">
+      <button type="button" class="btn-sec" style="width:100%" onclick="document.getElementById('cq-respaldo-input').click()">📄 Seleccionar cotización escaneada</button>
+      <div id="cq-respaldo-preview" style="display:none;margin-top:.5rem;font-size:.8rem;color:var(--dorado-d)"></div>
+      <button type="button" class="btn-save" style="width:100%;margin-top:.6rem" id="cq-btn-subir-respaldo" onclick="cqSubirRespaldo()">📤 Subir respaldo</button>
+      <div class="msg-err" id="cq-respaldo-msg" style="margin-top:.4rem"></div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL NOTA DE VENTA -->
 <div class="overlay" id="modal-nota" style="z-index:300;align-items:flex-start;padding:0;overflow-y:auto">
   <div style="background:#fff;width:100%;max-width:780px;margin:0 auto;padding:2rem;position:relative;min-height:100vh">
@@ -1844,6 +1869,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -1853,7 +1879,6 @@ const firebaseConfig = {
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT",
 };
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -4911,7 +4936,7 @@ function cqCalcTotal(){
 
 function resetFormCotizacion(){
   ["cq-nombre","cq-tel","cq-modelo","cq-precio","cq-precio-paquete","cq-promocion",
-   "cq-fecha-cita","cq-fecha-evento","cq-obs"].forEach(id=>{
+   "cq-fecha-cita","cq-fecha-evento","cq-vigencia","cq-obs"].forEach(id=>{
     const el=document.getElementById(id); if(el) el.value="";
   });
   const origen=document.getElementById("cq-origen"); if(origen) origen.value="";
@@ -4942,10 +4967,13 @@ async function guardarCotizacion(){
       promocion: document.getElementById("cq-promocion").value.trim(),
       fechaCita: document.getElementById("cq-fecha-cita").value,
       fechaEvento: document.getElementById("cq-fecha-evento").value,
+      vigencia: document.getElementById("cq-vigencia").value,
       anotaciones: document.getElementById("cq-obs").value.trim(),
       estatus: "pendiente",
       motivoNoRegreso: "",
       clienteFolioConvertido: null,
+      impresiones: [],
+      cotizacionImagenUrl: "",
       fechaCreacion: fechaLocalISO(),
       creadoPor: currentUser ? currentUser.user : ""
     };
@@ -5017,17 +5045,26 @@ function renderCqDayList(dateStr){
     const est = CQ_ESTATUS_LABEL[c.estatus] || CQ_ESTATUS_LABEL.pendiente;
     const total = (c.precio||0) + (c.precioPaquete||0);
     const puedeConvertir = c.estatus!=="convertida";
+    // Expirada: la vigencia ya pasó Y sigue sin concretarse (pendiente/agendada).
+    // NUNCA se oculta — solo se marca, como pidió el negocio.
+    const expirada = c.vigencia && c.vigencia < fechaLocalISO() && (c.estatus==="pendiente"||c.estatus==="agendada");
     return `<div class="cq-cot-card">
       <div class="cq-cot-top">
         <div>
           <div class="cq-cot-nombre">${c.nombre}</div>
           <div class="cq-cot-modelo">${c.modelo||"—"} · Folio ${c.folio}</div>
         </div>
-        <span class="status-badge ${est.cls}">${est.label}</span>
+        <div style="display:flex;gap:.3rem;flex-wrap:wrap;justify-content:flex-end">
+          ${expirada?`<span class="status-badge" style="background:#F2E2E0;color:#8B4A42">⏰ Expirada</span>`:""}
+          <span class="status-badge ${est.cls}">${est.label}</span>
+        </div>
       </div>
       <div style="font-size:.78rem;color:#888">Evento: ${c.fechaEvento||"—"} · Total estimado: $${total.toLocaleString("es-MX")}</div>
+      ${c.vigencia?`<div style="font-size:.72rem;color:${expirada?"#8B4A42":"#AAA"}">Vigencia hasta: ${c.vigencia}</div>`:""}
       ${c.motivoNoRegreso?`<div style="font-size:.72rem;color:var(--rojo);margin-top:.3rem">Motivo: ${c.motivoNoRegreso}</div>`:""}
+      ${c.cotizacionImagenUrl?`<div style="font-size:.72rem;margin-top:.3rem"><a href="${c.cotizacionImagenUrl}" target="_blank" rel="noopener">📎 Ver respaldo escaneado</a></div>`:""}
       <div class="cq-cot-actions">
+        <button class="cq-btn-mini" onclick="cqImprimirCotizacion('${c.id}')">🖨️ Imprimir</button>
         ${puedeConvertir?`<button class="cq-btn-mini" onclick="cqCambiarEstatus('${c.id}','agendada')">Marcar agendada</button>`:""}
         ${puedeConvertir?`<button class="cq-btn-mini solid" onclick="cqConvertirCliente('${c.id}')">Convertir a cliente</button>`:""}
         ${puedeConvertir?`<button class="cq-btn-mini rojo" onclick="cqAbrirNoRegreso('${c.id}')">No regresó</button>`:""}
@@ -5086,6 +5123,142 @@ async function cqConvertirCliente(id){
   cot.estatus = "convertida";
   cot.clienteFolioConvertido = null; // se desconoce hasta que se guarde el cliente
   await saveUnaCotizacion(cot);
+}
+
+// ══ IMPRESIÓN DE COTIZACIÓN ══
+// El documento se genera desde los datos vivos de Firestore, así que puede
+// reimprimirse idéntico desde cualquier dispositivo — "la nube" es la propia
+// cotización guardada. Cada impresión se registra en el array "impresiones"
+// del documento (fecha + usuario), sin necesidad de Storage (plan Spark).
+let _cqPrintId = null;
+
+function cqImprimirCotizacion(id){
+  const c = allCotizaciones.find(x=>x.id===id);
+  if(!c) return;
+  _cqPrintId = id;
+  const total = (c.precio||0) + (c.precioPaquete||0);
+  const compsHtml = (c.paquete && c.paquete.componentes && c.paquete.componentes.length)
+    ? c.paquete.componentes.map(k=>`<tr>
+        <td style="border:1px solid #DDD;padding:.35rem .6rem">${k.name}</td>
+        <td style="border:1px solid #DDD;padding:.35rem .6rem">${k.opcion||"—"}</td>
+      </tr>`).join("")
+    : `<tr><td colspan="2" style="border:1px solid #DDD;padding:.35rem .6rem;color:#999">Solo vestido — sin paquete</td></tr>`;
+  const tipoPkgLabel = {xv:"Paquete XV",novia:"Paquete Novia",solo:"Solo vestido",custom:"Personalizado"}[c.paquete?c.paquete.tipo:"solo"]||"—";
+  document.getElementById("cotizacion-print-content").innerHTML = `
+    <div style="text-align:center;border-bottom:2px solid #C9A84C;padding-bottom:.8rem;margin-bottom:1rem">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.6rem;letter-spacing:.1em">Ross de Lune</div>
+      <div style="font-size:.7rem;letter-spacing:.18em;text-transform:uppercase;color:#7A4F2A">Novias y Quinceañeras · Cotización</div>
+    </div>
+    <table style="width:100%;border-collapse:collapse;font-size:.82rem;margin-bottom:1rem">
+      <tr>
+        <td style="padding:.3rem 0"><strong>Folio:</strong> ${c.folio}</td>
+        <td style="padding:.3rem 0;text-align:right"><strong>Fecha:</strong> ${c.fechaCreacion||"—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:.3rem 0"><strong>Prospecto:</strong> ${c.nombre}</td>
+        <td style="padding:.3rem 0;text-align:right"><strong>Teléfono:</strong> ${c.telefono||"—"}</td>
+      </tr>
+      <tr>
+        <td style="padding:.3rem 0" colspan="2"><strong>Modelo de referencia:</strong> ${c.modelo||"—"}</td>
+      </tr>
+    </table>
+    <div style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#7A4F2A;margin-bottom:.4rem">${tipoPkgLabel}</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:1rem">
+      <tr>
+        <th style="border:1px solid #DDD;padding:.35rem .6rem;background:#FAFAFA;text-align:left">Componente</th>
+        <th style="border:1px solid #DDD;padding:.35rem .6rem;background:#FAFAFA;text-align:left">Opción</th>
+      </tr>
+      ${compsHtml}
+    </table>
+    <table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:1rem">
+      <tr><td style="padding:.25rem 0">Precio vestido:</td><td style="padding:.25rem 0;text-align:right">$${(c.precio||0).toLocaleString("es-MX")}</td></tr>
+      <tr><td style="padding:.25rem 0">Precio paquete:</td><td style="padding:.25rem 0;text-align:right">$${(c.precioPaquete||0).toLocaleString("es-MX")}</td></tr>
+      ${c.promocion?`<tr><td style="padding:.25rem 0">Promoción aplicada:</td><td style="padding:.25rem 0;text-align:right">${c.promocion}</td></tr>`:""}
+      <tr><td style="padding:.4rem 0;border-top:1px solid #C9A84C;font-weight:700">Total estimado:</td><td style="padding:.4rem 0;border-top:1px solid #C9A84C;text-align:right;font-weight:700;font-size:1rem">$${total.toLocaleString("es-MX")}</td></tr>
+    </table>
+    ${c.vigencia?`<div style="font-size:.78rem;margin-bottom:.5rem"><strong>Vigencia de esta cotización:</strong> hasta el ${c.vigencia}</div>`:""}
+    ${c.fechaEvento?`<div style="font-size:.78rem;margin-bottom:.5rem"><strong>Fecha del evento:</strong> ${c.fechaEvento}</div>`:""}
+    ${c.anotaciones?`<div style="font-size:.78rem;margin-bottom:.5rem"><strong>Anotaciones:</strong> ${c.anotaciones}</div>`:""}
+    <div style="text-align:center;margin-top:2rem;font-size:.68rem;color:#AAA">
+      Los precios y promociones de esta cotización ${c.vigencia?`son válidos hasta el ${c.vigencia}`:"están sujetos a cambio sin previo aviso"}.<br>
+      Ross de Lune · Novias y Quinceañeras
+    </div>`;
+  // Reset del bloque de respaldo cada vez que se abre el modal
+  window._cqRespaldoBase64 = null;
+  document.getElementById("cq-respaldo-input").value = "";
+  document.getElementById("cq-respaldo-msg").textContent = "";
+  const respaldoPreview = document.getElementById("cq-respaldo-preview");
+  if(c.cotizacionImagenUrl){
+    respaldoPreview.style.display = "block";
+    respaldoPreview.innerHTML = `📎 Ya hay un respaldo guardado — <a href="${c.cotizacionImagenUrl}" target="_blank" rel="noopener">ver documento</a>`;
+  }else{
+    respaldoPreview.style.display = "none";
+    respaldoPreview.innerHTML = "";
+  }
+  document.getElementById("modal-cotizacion-print").classList.add("open");
+}
+// Vista previa del archivo escaneado antes de subirlo (mismo patrón que previewContratoCliente).
+function cqPreviewRespaldo(input){
+  const file = input.files[0];
+  if(!file) return;
+  const reader = new FileReader();
+  reader.onload = e => {
+    window._cqRespaldoBase64 = e.target.result;
+    const preview = document.getElementById("cq-respaldo-preview");
+    preview.style.display = "block";
+    preview.textContent = "📎 "+file.name+" listo para subir";
+  };
+  reader.readAsDataURL(file);
+}
+// Sube el respaldo escaneado a Cloudinary reutilizando subirDocumentoCloudinary()
+// (misma función que usa el contrato firmado) — no se duplica lógica de subida.
+async function cqSubirRespaldo(){
+  const msg = document.getElementById("cq-respaldo-msg");
+  const btn = document.getElementById("cq-btn-subir-respaldo");
+  msg.textContent = "";
+  if(!window._cqRespaldoBase64){ msg.textContent = "Selecciona primero un archivo escaneado."; return; }
+  if(!_cqPrintId){ msg.textContent = "No se identificó la cotización."; return; }
+  const cot = allCotizaciones.find(x=>x.id===_cqPrintId);
+  if(!cot){ msg.textContent = "No se encontró la cotización."; return; }
+  btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Subiendo...';
+  try{
+    const url = await subirDocumentoCloudinary(window._cqRespaldoBase64);
+    cot.cotizacionImagenUrl = url;
+    await saveUnaCotizacion(cot);
+    window._cqRespaldoBase64 = null;
+    document.getElementById("cq-respaldo-input").value = "";
+    const preview = document.getElementById("cq-respaldo-preview");
+    preview.innerHTML = `📎 Respaldo guardado — <a href="${url}" target="_blank" rel="noopener">ver documento</a>`;
+    toast("✓ Respaldo subido a Cloudinary");
+    renderCqDayList(_cqCal.selDate);
+  }catch(e){
+    console.error(e);
+    msg.textContent = "Error al subir el respaldo. Verifica tu conexión.";
+  }finally{
+    btn.disabled = false; btn.innerHTML = "📤 Subir respaldo";
+  }
+}
+function cqCerrarPrint(){
+  document.getElementById("modal-cotizacion-print").classList.remove("open");
+  _cqPrintId = null;
+}
+async function cqEjecutarImpresion(){
+  // Registrar la impresión en Firestore ANTES de abrir el diálogo del sistema
+  if(_cqPrintId){
+    const c = allCotizaciones.find(x=>x.id===_cqPrintId);
+    if(c){
+      if(!Array.isArray(c.impresiones)) c.impresiones = [];
+      c.impresiones.push({fecha: fechaLocalISO(), usuario: currentUser?currentUser.user:""});
+      try{ await saveUnaCotizacion(c); }catch(e){ console.error("No se pudo registrar la impresión",e); }
+    }
+  }
+  // Mismo patrón que nota sencilla: ocultar barra, imprimir, restaurar
+  const noPrintBar = document.querySelector("#modal-cotizacion-print .no-print");
+  if(noPrintBar) noPrintBar.style.display="none";
+  setTimeout(()=>{
+    window.print();
+    if(noPrintBar) noPrintBar.style.display="flex";
+  },300);
 }
 
 // ══ PERMISOS ══
