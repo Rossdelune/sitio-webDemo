@@ -276,10 +276,14 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 .cq-cal-day{position:relative;aspect-ratio:1;border:1px solid #F0E8DA;border-radius:4px;padding:.25rem;font-size:.76rem;color:var(--texto);cursor:pointer;background:#fff;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;gap:.15rem;}
 .cq-cal-day.blank{visibility:hidden;pointer-events:none;}
 .cq-cal-day.today{border-color:var(--dorado);font-weight:700;}
-.cq-cal-day.sel{background:var(--dorado-g);color:#FFF8EC;}
-.cq-cal-day .dots{display:flex;gap:2px;flex-wrap:wrap;justify-content:center;}
-.cq-cal-day .dot{width:5px;height:5px;border-radius:50%;background:var(--dorado-d);}
-.cq-cal-day.sel .dot{background:#FFF8EC;}
+/* Color de fondo del día según el estatus más urgente de sus cotizaciones */
+.cq-cal-day.st-pendiente{background:#FBF0D9;}
+.cq-cal-day.st-agendada{background:#E3F3E8;}
+.cq-cal-day.st-convertida{background:#E4EBF5;}
+.cq-cal-day.st-no-regreso{background:#FADBD8;}
+.cq-cal-day.sel{background:var(--dorado-g)!important;color:#FFF8EC;}
+.cq-cal-count{font-size:.62rem;font-weight:700;color:var(--dorado-d);}
+.cq-cal-day.sel .cq-cal-count{color:#FFF8EC;}
 .cq-day-list{margin-top:1rem;}
 .cq-cot-card{background:var(--card);border:1px solid var(--borde);border-radius:8px;padding:.8rem .9rem;margin-bottom:.6rem;}
 .cq-cot-top{display:flex;justify-content:space-between;align-items:flex-start;gap:.5rem;margin-bottom:.4rem;}
@@ -552,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.1 · CotizadorNube con caducidad</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.2 · cotizadorDiaColor</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -5003,6 +5007,17 @@ function cqCalMes(delta){
   renderCqCalendario();
 }
 const CQ_MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
+// Prioridad para colorear el día cuando hay varias cotizaciones con distinto
+// estatus el mismo día: se muestra el color del estatus que más necesita
+// atención (pendiente primero, convertida al final por ser ya un histórico).
+const CQ_PRIORIDAD_DIA = ["pendiente","agendada","no_regreso","convertida"];
+function cqClaseDelDia(citasDia){
+  if(!citasDia.length) return "";
+  for(const est of CQ_PRIORIDAD_DIA){
+    if(citasDia.some(c=>c.estatus===est)) return "st-"+est.replace("_","-");
+  }
+  return "";
+}
 function renderCqCalendario(){
   const {year,month} = _cqCal;
   document.getElementById("cq-cal-mesnombre").textContent = CQ_MESES[month]+" "+year;
@@ -5015,11 +5030,11 @@ function renderCqCalendario(){
   for(let d=1; d<=diasEnMes; d++){
     const dateStr = `${year}-${String(month+1).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     const citasDia = allCotizaciones.filter(c=>c.fechaCita===dateStr);
-    const cls = ["cq-cal-day"];
+    const cls = ["cq-cal-day", cqClaseDelDia(citasDia)];
     if(dateStr===hoyStr) cls.push("today");
     if(dateStr===_cqCal.selDate) cls.push("sel");
-    const dots = citasDia.slice(0,4).map(()=>`<span class="dot"></span>`).join("");
-    html += `<div class="${cls.join(" ")}" onclick="cqSelectDay('${dateStr}')">${d}<div class="dots">${dots}</div></div>`;
+    const contador = citasDia.length ? `<div class="cq-cal-count">${citasDia.length}</div>` : "";
+    html += `<div class="${cls.join(" ")}" onclick="cqSelectDay('${dateStr}')">${d}${contador}</div>`;
   }
   grid.innerHTML = html;
   if(_cqCal.selDate) renderCqDayList(_cqCal.selDate);
