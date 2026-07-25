@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.6 · fixDuplicadosTalla</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v45.0 · historialAbonosMenu</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1873,7 +1873,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
-
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -3272,6 +3271,7 @@ function renderClientes(lista){
           `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}')" title="Más opciones">⋮</button>
         <div class="cliente-menu" id="menu-${c.id}" style="display:none">
           <button onclick="verPagos('${c.id}');cerrarClienteMenus()">💳 Pagos</button>
+          <button onclick="abrirAbonoModal('${c.id}');cerrarClienteMenus()">📝 Historial de abonos</button>
           <button onclick="verContrato('${c.id}');cerrarClienteMenus()">📄 Contrato</button>
           ${c.contratoUrl?`<button onclick="window.open('${c.contratoUrl}','_blank');cerrarClienteMenus()">📎 Documento firmado</button>`:""}
           <button onclick="verNotaVenta('${c.id}');cerrarClienteMenus()">🧾 Nota de venta</button>
@@ -7097,14 +7097,6 @@ function generarNotaVenta(c){
     </div>
   </div>`;
 }
-
-
-function verPagos(id){
-  goSec("pagos-pendientes");
-  renderPagosPendientes();
-}
-
-// ══ NOTA SENCILLA ══
 
 // ══ RENDER PEDIDOS ══
 // ══ FILTRO ENTREGAS ══
