@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.2 · cotizadorDiaColor</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.3 · fixAgrupacionTallas</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1873,6 +1873,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
+// ══ FIREBASE — AUTHENTICATION + FIRESTORE (único backend, JSONBin retirado) ══
 
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
@@ -6175,14 +6177,16 @@ function buscarModeloInventario(q){
   }
   window._matrizCeldas = {};
   const grupos = {};
+  const etiquetas = {};
   coincidencias.forEach(a=>{
-    const key = (a.modelo||"").trim() || "(sin modelo)";
-    if(!grupos[key]) grupos[key]=[];
+    const original = (a.modelo||"").trim() || "(sin modelo)";
+    const key = original.toLowerCase().replace(/\s+/g," ");
+    if(!grupos[key]){ grupos[key]=[]; etiquetas[key]=original; }
     grupos[key].push(a);
   });
   cont.innerHTML =
     '<p style="font-size:.72rem;color:var(--dorado-d);margin-bottom:.5rem">'+Object.keys(grupos).length+' modelo(s) encontrado(s):</p>' +
-    Object.keys(grupos).map(m => buildMatrizModelo(m, grupos[m])).join("");
+    Object.keys(grupos).map(k => buildMatrizModelo(etiquetas[k], grupos[k])).join("");
 }
 
 function buildInvCard(a){
