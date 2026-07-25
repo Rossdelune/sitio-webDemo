@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.5 · forzarLecturaServidor</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.6 · fixDuplicadosTalla</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -6588,21 +6588,42 @@ async function guardarArticuloInv(){
 
       if(filasExtra.length){
         const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
-        const nuevos = [];
+        const modeloNorm = (camposComunes.modelo||"").trim().toLowerCase();
+        let agregadas = 0, actualizadas = 0;
         for(let i=0;i<filasExtra.length;i++){
-          const nuevoArt = {
-            id: "INV"+Date.now()+"_x"+i,
-            ...camposComunes,
-            talla: filasExtra[i].talla,
-            cantidad: filasExtra[i].cantidad,
-            creadoEn: ahora,
-            actualizadoEn: null
-          };
-          await saveUnArticulo(nuevoArt);
-          nuevos.push(nuevoArt);
+          const tallaNorm = (filasExtra[i].talla||"").trim().toLowerCase();
+          const existente = todos.find(x =>
+            (x.modelo||"").trim().toLowerCase()===modeloNorm &&
+            (x.talla||"").trim().toLowerCase()===tallaNorm
+          );
+          if(existente){
+            // Ya existe esa talla para este modelo — se suma la cantidad, no se duplica
+            const actualizado = {
+              ...existente,
+              cantidad: (Number(existente.cantidad)||0) + (Number(filasExtra[i].cantidad)||0),
+              actualizadoEn: ahora
+            };
+            await saveUnArticulo(actualizado);
+            todos = todos.map(x=>x.id===actualizado.id?actualizado:x);
+            actualizadas++;
+          } else {
+            const nuevoArt = {
+              id: "INV"+Date.now()+"_x"+i,
+              ...camposComunes,
+              talla: filasExtra[i].talla,
+              cantidad: filasExtra[i].cantidad,
+              creadoEn: ahora,
+              actualizadoEn: null
+            };
+            await saveUnArticulo(nuevoArt);
+            todos = [...todos, nuevoArt];
+            agregadas++;
+          }
         }
-        todos = [...todos, ...nuevos];
-        toast(`Artículo actualizado y ${nuevos.length} talla(s) nueva(s) agregada(s) ✓`);
+        let msg = [];
+        if(agregadas) msg.push(agregadas+" talla(s) nueva(s) agregada(s)");
+        if(actualizadas) msg.push(actualizadas+" talla(s) existente(s) sumada(s)");
+        toast("Artículo actualizado — "+msg.join(" y ")+" ✓");
       } else {
         toast("Artículo actualizado ✓");
       }
@@ -6632,21 +6653,43 @@ async function guardarArticuloInv(){
     });
 
     const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
-    const nuevos = [];
+    const modeloNorm = (camposComunes.modelo||"").trim().toLowerCase();
+    let todosFinal = [...inv];
+    let agregadas2 = 0, actualizadas2 = 0;
     for(let i=0;i<filas.length;i++){
-      const articulo = {
-        id: i===0 ? artIdBase : artIdBase+"_"+i,
-        ...camposComunes,
-        talla: filas[i].talla,
-        cantidad: filas[i].cantidad,
-        creadoEn: ahora,
-        actualizadoEn: null
-      };
-      await saveUnArticulo(articulo);
-      nuevos.push(articulo);
+      const tallaNorm = (filas[i].talla||"").trim().toLowerCase();
+      const existente = todosFinal.find(x =>
+        (x.modelo||"").trim().toLowerCase()===modeloNorm &&
+        (x.talla||"").trim().toLowerCase()===tallaNorm
+      );
+      if(existente){
+        const actualizado = {
+          ...existente,
+          cantidad: (Number(existente.cantidad)||0) + (Number(filas[i].cantidad)||0),
+          actualizadoEn: ahora
+        };
+        await saveUnArticulo(actualizado);
+        todosFinal = todosFinal.map(x=>x.id===actualizado.id?actualizado:x);
+        actualizadas2++;
+      } else {
+        const articulo = {
+          id: i===0 ? artIdBase : artIdBase+"_"+i,
+          ...camposComunes,
+          talla: filas[i].talla,
+          cantidad: filas[i].cantidad,
+          creadoEn: ahora,
+          actualizadoEn: null
+        };
+        await saveUnArticulo(articulo);
+        todosFinal = [...todosFinal, articulo];
+        agregadas2++;
+      }
     }
-    window._invData = [...inv, ...nuevos];
-    toast(nuevos.length>1 ? `${nuevos.length} artículos guardados ✓ (uno por talla)` : "Artículo guardado ✓");
+    window._invData = todosFinal;
+    let msg2 = [];
+    if(agregadas2) msg2.push(agregadas2+" nueva(s)");
+    if(actualizadas2) msg2.push(actualizadas2+" sumada(s) a talla existente");
+    toast("Guardado — "+msg2.join(" y ")+" ✓");
     closeAllNav();
     document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
     const secInv2=document.getElementById("sec-inv-qr");
