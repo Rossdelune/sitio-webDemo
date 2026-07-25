@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.3 · fixAgrupacionTallas</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v44.5 · forzarLecturaServidor</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1874,16 +1874,14 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 <script>
 // ══ CONFIG ══
 
-// ══ FIREBASE — AUTHENTICATION + FIRESTORE (único backend, JSONBin retirado) ══
-
 const firebaseConfig = {
-  apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
-  authDomain: "rossdelune2026.firebaseapp.com",
-  projectId: "rossdelune2026",
-  storageBucket: "rossdelune2026.firebasestorage.app",
-  messagingSenderId: "396024136594",
-  appId: "1:396024136594:web:05286384348f6fbbe4374b",
-  measurementId: "G-7Y4N4283TT",
+  apiKey: "AIzaSyDEaVniPdpXhbiRT6qYWEJuu9hyTkghnaY",
+  authDomain: "rdl-production.firebaseapp.com",
+  projectId: "rdl-production",
+  storageBucket: "rdl-production.firebasestorage.app",
+  messagingSenderId: "510898405169",
+  appId: "1:510898405169:web:77f36cf5215f82be013a10",
+  measurementId: "G-KENSFN9PPR",
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
@@ -1950,7 +1948,7 @@ async function eliminarClienteFS(cliente){
 // colección "inventario", ID = su "id" (INV..., siempre existe, sin casos
 // especiales como el folio null de clientes).
 async function loadInventarioFS(){
-  const snap = await db.collection("inventario").get();
+  const snap = await db.collection("inventario").get({source:"server"});
   return snap.docs.map(d=>d.data());
 }
 async function saveUnArticulo(articulo){
@@ -6609,7 +6607,14 @@ async function guardarArticuloInv(){
         toast("Artículo actualizado ✓");
       }
       window._invData = todos;
-      goSec("inv-qr");
+      // Mostramos el dato que ya tenemos en memoria (correcto) en vez de volver
+      // a pedirlo al servidor — evita la carrera con Firestore justo después
+      // de escribir varios documentos seguidos.
+      closeAllNav();
+      document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+      const secInv=document.getElementById("sec-inv-qr");
+      if(secInv) secInv.classList.add("active");
+      renderInventario();
       return;
     }
 
@@ -6642,7 +6647,11 @@ async function guardarArticuloInv(){
     }
     window._invData = [...inv, ...nuevos];
     toast(nuevos.length>1 ? `${nuevos.length} artículos guardados ✓ (uno por talla)` : "Artículo guardado ✓");
-    goSec("inv-qr");
+    closeAllNav();
+    document.querySelectorAll(".section").forEach(s=>s.classList.remove("active"));
+    const secInv2=document.getElementById("sec-inv-qr");
+    if(secInv2) secInv2.classList.add("active");
+    renderInventario();
   }catch(e){console.error("guardarArticuloInv error:",e);msg.textContent="Error al guardar. Verifica tu conexión.";}
   finally{
     if(btn){ btn.disabled=false; btn.textContent=btnTextoOriginal; }
