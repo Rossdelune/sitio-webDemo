@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v45.0 · historialAbonosMenu</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v46.0 · formatoAjuste</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -4541,11 +4541,14 @@ function generarFormatoAjuste(c){
   const filasPruebas = PASOS_PEDIDO.map((p,i)=>{
     const no = i<3 ? (i+1)+"a" : "Entrega";
     const done = prog[p.id] ? "✓" : "&nbsp;";
+    const horaPrueba = prog[p.id+"_horaPrueba"] || "&nbsp;";
     return `<tr>
       <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center;font-weight:600">${no}</td>
       <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center">${fmtFecha(prog[p.id+"_fechaPrueba"])}</td>
+      <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center;font-size:8pt">${horaPrueba}</td>
       <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center">${done}</td>
       <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center">${fmtFecha(prog[p.id+"_fechaTerminado"])}</td>
+      <td style="border:1px solid #999;padding:.3rem .4rem;text-align:center">&nbsp;</td>
     </tr>`;
   }).join("");
 
@@ -4615,8 +4618,10 @@ function generarFormatoAjuste(c){
             <tr style="background:#FAFAFA">
               <td style="border:1px solid #999;padding:.25rem;font-weight:600">No.</td>
               <td style="border:1px solid #999;padding:.25rem;font-weight:600">Fecha</td>
+              <td style="border:1px solid #999;padding:.25rem;font-weight:600">Hora</td>
               <td style="border:1px solid #999;padding:.25rem;font-weight:600">Terminado</td>
               <td style="border:1px solid #999;padding:.25rem;font-weight:600">Fecha</td>
+              <td style="border:1px solid #999;padding:.25rem;font-weight:600">Hora</td>
             </tr>
             ${filasPruebas}
           </table>
