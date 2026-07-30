@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v46.0 · formatoAjuste</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v46.1 · fixHora</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1873,6 +1873,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 <script>
 // ══ CONFIG ══
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -4255,9 +4256,11 @@ function buildProcesoCard(c){
       </div>
       <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.3rem;flex-wrap:wrap">
         <label style="font-size:.6rem;color:#AAA;display:flex;align-items:center;gap:.25rem">Hora
-          <input type="time" value="${hPrueba}" style="font-size:.66rem;border:1px solid #E8DDD0;border-radius:2px;padding:.15rem .3rem"
+          <input type="time" id="hora-${c.id}-${p.id}" value="${hPrueba}" style="font-size:.66rem;border:1px solid #E8DDD0;border-radius:2px;padding:.15rem .3rem"
             onchange="guardarNotaPedido('${c.id}','${p.id}_horaPrueba',this.value)">
         </label>
+        <button type="button" title="Borrar hora" onclick="borrarHoraPrueba('${c.id}','${p.id}')"
+          style="background:none;border:1px solid #E8DDD0;border-radius:2px;color:#C0392B;cursor:pointer;font-size:.62rem;padding:.15rem .4rem;line-height:1">🗑️</button>
       </div>
       <textarea class="paso-nota-input" placeholder="Observaciones del ${p.label}..." rows="2"
         onblur="guardarNotaPedido('${c.id}','${p.id+"_nota"}',this.value)">${nota}</textarea>
@@ -4367,6 +4370,16 @@ async function guardarNotaPedido(clienteId, campo, valor){
   if(!allClientes[idx].progreso.pedido) allClientes[idx].progreso.pedido={};
   allClientes[idx].progreso.pedido[campo] = valor;
   await saveUnCliente(allClientes[idx]);
+}
+
+// Botón independiente para borrar la hora de un ajuste — algunos navegadores de escritorio
+// no muestran una "X" nativa en el input type="time" una vez que ya tiene valor, así que
+// este botón limpia el campo en pantalla y guarda el valor vacío igual que guardarNotaPedido().
+async function borrarHoraPrueba(clienteId, pasoId){
+  const input = document.getElementById(`hora-${clienteId}-${pasoId}`);
+  if(input) input.value = "";
+  await guardarNotaPedido(clienteId, pasoId+"_horaPrueba", "");
+  toast("Hora borrada ✓");
 }
 
 // ══ AGENDA SEMANAL DE AJUSTES ══
