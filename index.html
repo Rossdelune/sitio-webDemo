@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v47.0 · fixColor</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v47.1 · fixColor</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1872,7 +1872,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 
 <script>
-// ══ CONFIG ══
+// ══ CONFIG
+
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -3947,10 +3949,6 @@ function verNotaSencillaGuardada(id){
         <td style="border:1px solid #CCC;padding:.35rem .5rem;width:15%"><strong>Tel:</strong></td>
         <td style="border:1px solid #CCC;padding:.35rem .5rem">${c.tel||"—"}</td>
       </tr>
-      ${c.color?`<tr>
-        <td style="border:1px solid #CCC;padding:.35rem .5rem;width:20%"><strong>Color:</strong></td>
-        <td colspan="3" style="border:1px solid #CCC;padding:.35rem .5rem">${c.color.nombre||"—"}</td>
-      </tr>`:""}
     </table>
     <table style="width:100%;border-collapse:collapse;margin-bottom:.4rem">
       <thead>
@@ -3993,12 +3991,6 @@ function renderNotaSencilla(folio){
         <div><label style="font-size:.66rem;color:#888;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:.2rem">Teléfono</label>
           <input id="ns-tel" type="tel" placeholder="921 000 0000" style="width:100%;border:none;border-bottom:1px solid #DDD;padding:.35rem 0;font-size:.85rem;outline:none;background:transparent" oninput="actualizarVistaNotaSencilla('${folio}')">
         </div>
-      </div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:.6rem;margin-bottom:.8rem">
-        <div><label style="font-size:.66rem;color:#888;text-transform:uppercase;letter-spacing:.1em;display:block;margin-bottom:.2rem">Color (opcional)</label>
-          <input id="ns-color" type="text" placeholder="Ej: Azul, Blanco, etc." style="width:100%;border:none;border-bottom:1px solid #DDD;padding:.35rem 0;font-size:.85rem;outline:none;background:transparent">
-        </div>
-        <div></div>
       </div>
       <div style="font-size:.7rem;letter-spacing:.14em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.6rem">Artículos</div>
       <div id="ns-items-form"></div>
@@ -4064,7 +4056,6 @@ async function generarEImprimirNotaSencilla(folio){
   }
   const nombre  = document.getElementById("ns-nombre")?.value||"—";
   const tel     = document.getElementById("ns-tel")?.value||"—";
-  const color   = document.getElementById("ns-color")?.value||"";
   const hoy     = new Date().toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"});
   const subtotal= notaSencillaItems.reduce((s,it)=>s+(Number(it.qty)||1)*(Number(it.precio)||0),0);
 
@@ -4120,10 +4111,6 @@ async function generarEImprimirNotaSencilla(folio){
         <td style="border:1px solid #CCC;padding:.35rem .5rem;width:15%"><strong>Tel:</strong></td>
         <td style="border:1px solid #CCC;padding:.35rem .5rem">${tel}</td>
       </tr>
-      ${color?`<tr>
-        <td style="border:1px solid #CCC;padding:.35rem .5rem;width:20%"><strong>Color:</strong></td>
-        <td colspan="3" style="border:1px solid #CCC;padding:.35rem .5rem">${color}</td>
-      </tr>`:""}
     </table>
 
     <!-- ARTÍCULOS -->
@@ -4157,7 +4144,7 @@ async function generarEImprimirNotaSencilla(folio){
 
   // notasSencillas ahora vive en Firestore también, igual que el "cliente" de venta directa
   try{
-    await agregarNotaSencillaFS({fecha:new Date().toISOString(),nombre,tel,color,items:notaSencillaItems,total:subtotal});
+    await agregarNotaSencillaFS({fecha:new Date().toISOString(),nombre,tel,items:notaSencillaItems,total:subtotal});
     const nuevoCliente={
       id:"NS"+Date.now(),
       esNotaSencilla:true,
@@ -4165,7 +4152,6 @@ async function generarEImprimirNotaSencilla(folio){
       fecha:fechaLocalISO(),
       nombre,
       tel,
-      color:color?{nombre:color,hex:"#CCC"}:null,
       estatus:"Venta directa",
       precio:subtotal,
       anticipo:subtotal,
@@ -4285,7 +4271,7 @@ function buildProcesoCard(c){
     <div class="proceso-card-header">
       <div>
         <div class="proceso-nombre">${c.nombre}</div>
-        <div class="proceso-meta">Folio ${c.folio||"—"} · ${c.tipo==="xv"?"Quinceañera":"Novia"} · ${c.modelo||"—"} · <span class="color-dot" style="background:${c.color?.hex||"#CCC"}"></span>${c.color?.nombre||"—"}</div>
+        <div class="proceso-meta">Folio ${c.folio||"—"} · ${c.tipo==="xv"?"Quinceañera":"Novia"} · ${c.modelo||"—"}</div>
       </div>
       <span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}">${c.estatus||"—"}</span>
     </div>
@@ -4783,7 +4769,7 @@ function buildDisenoCard(c){
     <div class="proceso-card-header">
       <div>
         <div class="proceso-nombre">${c.nombre}</div>
-        <div class="proceso-meta">Folio ${c.folio||"—"} · ${c.elaboracion} · ${c.modelo||"—"} · <span class="color-dot" style="background:${c.color?.hex||"#CCC"}"></span>${c.color?.nombre||"—"}</div>
+        <div class="proceso-meta">Folio ${c.folio||"—"} · ${c.elaboracion} · ${c.modelo||"—"}</div>
       </div>
       <span class="status-badge ${c.estatus==="Entregado"?"s-entregado":c.estatus==="Recibido"?"s-recibido":"s-pedido"}">${c.estatus||"—"}</span>
     </div>
@@ -6856,7 +6842,7 @@ function generarFormatoEntrega(c){
   const tipos   = {"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado"};
   const fEntrega = c.entrega ? new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   const fContrato= c.fecha   ? new Date(c.fecha+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—";
-  const colorBox = c.colorHex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.colorHex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+  const colorBox = c.color?.hex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.color.hex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
 
   document.getElementById("entrega-content").innerHTML=`
   <div style="font-family:Arial,sans-serif;color:#1a1a1a;line-height:1.4;max-width:720px;margin:0 auto;font-size:10pt;position:relative">
@@ -6902,7 +6888,7 @@ function generarFormatoEntrega(c){
         </tr>
         <tr>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Color</strong></td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.color?.nombre||c.color?.hex||"—"}</td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Fecha de evento</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem"><strong>${fEntrega}</strong></td>
         </tr>
