@@ -483,7 +483,9 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 /* worker modal */
 #modal-worker .modal{max-width:400px;}
 /* print */
+.print-only{display:none;}
 @media print{
+  .print-only{display:inline!important;}
   body > *:not(.overlay):not(#screen-panel):not(#modal-qr-print):not(#modal-lote-print){display:none!important;}
   .overlay{display:none!important;}
   /* Corte de caja — impresión directa desde la sección */
@@ -556,7 +558,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v48.0 · formatoEntregaDatos</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v48.1 · pendienteEntregado</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1872,7 +1874,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 
 <script>
-// ══ CONFIG ══
+// ══ CONFI
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -4547,7 +4550,7 @@ function imprimirAjuste(){window.print();}
 function generarFormatoAjuste(c){
   const prog = c.progreso?.pedido || {};
   const tipos = {"xv":"Quinceañera","novia":"Novia"};
-  const colorBox = c.colorHex ? `<span style="display:inline-block;width:11px;height:11px;background:${c.colorHex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+  const colorBox = c.color?.hex ? `<span style="display:inline-block;width:11px;height:11px;background:${c.color.hex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
   const fmtFecha = v => v ? new Date(v+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"2-digit"}) : "&nbsp;";
 
   const filasPruebas = PASOS_PEDIDO.map((p,i)=>{
@@ -4610,7 +4613,7 @@ function generarFormatoAjuste(c){
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Tipo de vestido</td>
           <td style="border:1px solid #999;padding:.3rem .5rem">${tipos[c.tipo]||"—"}</td>
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Color</td>
-          <td style="border:1px solid #999;padding:.3rem .5rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
+          <td style="border:1px solid #999;padding:.3rem .5rem">${colorBox}${c.color?.nombre||c.color?.hex||"—"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Cliente</td>
@@ -6840,27 +6843,39 @@ function generarFormatoEntrega(c){
   const tipos   = {"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado"};
   const fEntrega = c.entrega ? new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   const fContrato= c.fecha   ? new Date(c.fecha+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—";
-  const colorBox = c.colorHex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.colorHex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+  const colorBox = c.color?.hex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.color.hex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
 
-  // Accesorios y complementos del pedido (mismo dato que ya usa Nota de Venta: paquete + componentes + adicionales)
-  const comps = (c.paquete?.componentes||[]).map(x=>x.name+(x.opcion?" ("+x.opcion+")":"")).join(", ")||"—";
+  // Artículos del pedido, uno por uno (componentes del paquete + adicionales), con estado Entregado/Pendiente.
+  // Estado por default = "pendiente" si el artículo aún no tiene clave en c.entregaEstado — así nunca se
+  // marca "Entregado" por accidente/olvido.
+  const estadoMap = c.entregaEstado || {};
+  const filaEstado = (key) => {
+    const estado = estadoMap[key] || "pendiente";
+    const esEntregado = estado === "entregado";
+    return `<button type="button" class="no-print" onclick="toggleEntregaItem('${c.id}','${key}')"
+      style="border:1px solid ${esEntregado?"#4C8C5A":"#B5442E"};color:${esEntregado?"#4C8C5A":"#B5442E"};background:${esEntregado?"#EFF6F0":"#FBEEEA"};
+      padding:.2rem .7rem;border-radius:12px;font-size:.7rem;font-weight:700;letter-spacing:.05em;cursor:pointer;white-space:nowrap">
+      ${esEntregado?"✓ Entregado":"⏳ Pendiente"}</button>
+      <span class="print-only" style="font-weight:700;color:${esEntregado?"#4C8C5A":"#B5442E"}">${esEntregado?"Entregado":"Pendiente"}</span>`;
+  };
+
   let accesoriosRows = "";
-  if(c.paquete?.tipo && c.paquete.tipo!=="solo"){
+  (c.paquete?.componentes||[]).forEach(comp=>{
+    const key = "comp_"+comp.id;
     accesoriosRows += `<tr>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem">${c.paquete.tipo==="xv"?"Paquete XV":c.paquete.tipo==="novia"?"Paquete Novia":"Paquete personalizado"} — ${comps}</td>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">1</td>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:right">$${paquete.toLocaleString("es-MX")}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem">${comp.name}${comp.opcion?" — "+comp.opcion:""}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">${filaEstado(key)}</td>
     </tr>`;
-  }
-  (c.paquete?.adicionales||[]).forEach(a=>{
+  });
+  (c.paquete?.adicionales||[]).forEach((a,i)=>{
+    const key = "add_"+i;
     accesoriosRows += `<tr>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem">${a.nombre}${a.nota?" — "+a.nota:""}</td>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">1</td>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:right">$${Number(a.precio||0).toLocaleString("es-MX")}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem">${a.nombre}${a.nota?" — "+a.nota:""} <span style="color:#999">($${Number(a.precio||0).toLocaleString("es-MX")})</span></td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">${filaEstado(key)}</td>
     </tr>`;
   });
   if(!accesoriosRows){
-    accesoriosRows = `<tr><td colspan="3" style="border:1px solid #DDD;padding:.6rem;color:#999;text-align:center;font-style:italic">Sin accesorios adicionales</td></tr>`;
+    accesoriosRows = `<tr><td colspan="2" style="border:1px solid #DDD;padding:.6rem;color:#999;text-align:center;font-style:italic">Sin accesorios adicionales</td></tr>`;
   }
 
   document.getElementById("entrega-content").innerHTML=`
@@ -6907,7 +6922,7 @@ function generarFormatoEntrega(c){
         </tr>
         <tr>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Color</strong></td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.color?.nombre||c.color?.hex||"—"}</td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Fecha de evento</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem"><strong>${fEntrega}</strong></td>
         </tr>
@@ -6921,13 +6936,12 @@ function generarFormatoEntrega(c){
         </tr>`:""}
       </table>
 
-      <!-- ARTÍCULOS Y ACCESORIOS ENTREGADOS -->
-      <div style="font-weight:700;font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;border-bottom:1pt solid #EEE;padding-bottom:3pt;margin-bottom:6pt">Artículos y accesorios entregados</div>
+      <!-- ARTÍCULOS DEL PEDIDO -->
+      <div style="font-weight:700;font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;border-bottom:1pt solid #EEE;padding-bottom:3pt;margin-bottom:6pt">Artículos del pedido</div>
       <table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt">
         <tr style="background:#FAFAFA">
-          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:60%"><strong>Descripción</strong></td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:15%;text-align:center"><strong>Cantidad</strong></td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:25%;text-align:right"><strong>Precio</strong></td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:75%"><strong>Descripción</strong></td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:25%;text-align:center"><strong>Estado</strong></td>
         </tr>
         ${accesoriosRows}
       </table>
@@ -6960,6 +6974,21 @@ function generarFormatoEntrega(c){
 
     </div>
   </div>`;
+}
+
+// Alterna el estado Entregado/Pendiente de un artículo (componente de paquete o adicional) dentro
+// del Formato de Entrega. Se guarda en c.entregaEstado en Firestore (mismo patrón que guardarNotaPedido)
+// para que el estado no se pierda al reimprimir o cerrar el modal.
+async function toggleEntregaItem(clienteId, itemKey){
+  allClientes = await loadClientesFS();
+  const c = allClientes.find(x=>x.id===clienteId);
+  if(!c) return;
+  if(!c.entregaEstado) c.entregaEstado = {};
+  const actual = c.entregaEstado[itemKey] || "pendiente";
+  c.entregaEstado[itemKey] = actual==="entregado" ? "pendiente" : "entregado";
+  await saveUnCliente(c);
+  generarFormatoEntrega(c);
+  toast(c.entregaEstado[itemKey]==="entregado" ? "Marcado como entregado ✓" : "Marcado como pendiente ⏳");
 }
 
 function generarNotaVenta(c){
