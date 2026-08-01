@@ -556,7 +556,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v47.1 · fixColor</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v48.0 · formatoEntregaDatos</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1872,9 +1872,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 
 <script>
-// ══ CONFIG
-
-
+// ══ CONFIG ══
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -4549,7 +4547,7 @@ function imprimirAjuste(){window.print();}
 function generarFormatoAjuste(c){
   const prog = c.progreso?.pedido || {};
   const tipos = {"xv":"Quinceañera","novia":"Novia"};
-  const colorBox = c.color?.hex ? `<span style="display:inline-block;width:11px;height:11px;background:${c.color.hex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+  const colorBox = c.colorHex ? `<span style="display:inline-block;width:11px;height:11px;background:${c.colorHex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
   const fmtFecha = v => v ? new Date(v+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"2-digit"}) : "&nbsp;";
 
   const filasPruebas = PASOS_PEDIDO.map((p,i)=>{
@@ -4612,7 +4610,7 @@ function generarFormatoAjuste(c){
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Tipo de vestido</td>
           <td style="border:1px solid #999;padding:.3rem .5rem">${tipos[c.tipo]||"—"}</td>
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Color</td>
-          <td style="border:1px solid #999;padding:.3rem .5rem">${colorBox}${c.color?.nombre||c.color?.hex||"—"}</td>
+          <td style="border:1px solid #999;padding:.3rem .5rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
         </tr>
         <tr>
           <td style="border:1px solid #999;padding:.3rem .5rem;background:#FAFAFA;font-weight:600">Cliente</td>
@@ -6842,7 +6840,28 @@ function generarFormatoEntrega(c){
   const tipos   = {"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado"};
   const fEntrega = c.entrega ? new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   const fContrato= c.fecha   ? new Date(c.fecha+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—";
-  const colorBox = c.color?.hex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.color.hex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+  const colorBox = c.colorHex ? `<span style="display:inline-block;width:12px;height:12px;background:${c.colorHex};border:1px solid #CCC;border-radius:2px;vertical-align:middle;margin-right:4px"></span>` : "";
+
+  // Accesorios y complementos del pedido (mismo dato que ya usa Nota de Venta: paquete + componentes + adicionales)
+  const comps = (c.paquete?.componentes||[]).map(x=>x.name+(x.opcion?" ("+x.opcion+")":"")).join(", ")||"—";
+  let accesoriosRows = "";
+  if(c.paquete?.tipo && c.paquete.tipo!=="solo"){
+    accesoriosRows += `<tr>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem">${c.paquete.tipo==="xv"?"Paquete XV":c.paquete.tipo==="novia"?"Paquete Novia":"Paquete personalizado"} — ${comps}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">1</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:right">$${paquete.toLocaleString("es-MX")}</td>
+    </tr>`;
+  }
+  (c.paquete?.adicionales||[]).forEach(a=>{
+    accesoriosRows += `<tr>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem">${a.nombre}${a.nota?" — "+a.nota:""}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">1</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:right">$${Number(a.precio||0).toLocaleString("es-MX")}</td>
+    </tr>`;
+  });
+  if(!accesoriosRows){
+    accesoriosRows = `<tr><td colspan="3" style="border:1px solid #DDD;padding:.6rem;color:#999;text-align:center;font-style:italic">Sin accesorios adicionales</td></tr>`;
+  }
 
   document.getElementById("entrega-content").innerHTML=`
   <div style="font-family:Arial,sans-serif;color:#1a1a1a;line-height:1.4;max-width:720px;margin:0 auto;font-size:10pt;position:relative">
@@ -6888,7 +6907,7 @@ function generarFormatoEntrega(c){
         </tr>
         <tr>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Color</strong></td>
-          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.color?.nombre||c.color?.hex||"—"}</td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem">${colorBox}${c.colorNombre||c.colorHex||"—"}</td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA"><strong>Fecha de evento</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem"><strong>${fEntrega}</strong></td>
         </tr>
@@ -6900,6 +6919,17 @@ function generarFormatoEntrega(c){
           <td style="border:1px solid #DDD;padding:.4rem .6rem;background:#FAFAFA;vertical-align:top"><strong>Observaciones</strong></td>
           <td style="border:1px solid #DDD;padding:.4rem .6rem" colspan="3">${c.obs}</td>
         </tr>`:""}
+      </table>
+
+      <!-- ARTÍCULOS Y ACCESORIOS ENTREGADOS -->
+      <div style="font-weight:700;font-size:8pt;letter-spacing:.08em;text-transform:uppercase;color:#7A4F2A;border-bottom:1pt solid #EEE;padding-bottom:3pt;margin-bottom:6pt">Artículos y accesorios entregados</div>
+      <table style="width:100%;border-collapse:collapse;font-size:9pt;margin-bottom:12pt">
+        <tr style="background:#FAFAFA">
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:60%"><strong>Descripción</strong></td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:15%;text-align:center"><strong>Cantidad</strong></td>
+          <td style="border:1px solid #DDD;padding:.4rem .6rem;width:25%;text-align:right"><strong>Precio</strong></td>
+        </tr>
+        ${accesoriosRows}
       </table>
 
       <!-- DECLARACIÓN DE CONFORMIDAD -->
