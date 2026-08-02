@@ -482,6 +482,8 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 /* worker modal */
 #modal-worker .modal{max-width:400px;}
+/* abono modal: contenido largo (resumen + historial + prórroga/interés + campos) supera el viewport en pantallas medianas/chicas; sin esto el scroll se filtraba al body y no al modal */
+#modal-abono .modal{max-height:90vh;overflow-y:auto;}
 /* print */
 .print-only{display:none;}
 @media print{
@@ -558,7 +560,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v48.1 · pendienteEntregado</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.0 · fixScroll</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1874,8 +1876,6 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
 
 
 <script>
-// ══ CONFI
-
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -1884,6 +1884,7 @@ const firebaseConfig = {
   messagingSenderId: "396024136594",
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT",
+};
 };
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
@@ -4895,6 +4896,21 @@ async function loadCotizacionesFS(){
 async function saveUnaCotizacion(cot){
   await db.collection("cotizaciones").doc(String(cot.id)).set(cot);
 }
+// Eliminar cotización — mismo patrón de confirm() que ya usan accesorios,
+// gastos e inventario. Borra el documento de Firestore y lo quita del
+// arreglo local para refrescar la vista sin recargar todo el calendario.
+async function eliminarCotizacionFS(id){
+  if(!confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer.")) return;
+  try{
+    await db.collection("cotizaciones").doc(String(id)).delete();
+    allCotizaciones = allCotizaciones.filter(c=>c.id!==id);
+    toast("✓ Cotización eliminada");
+    renderCqCalendario();
+  }catch(e){
+    console.error(e);
+    toast("Error al eliminar la cotización", "error");
+  }
+}
 // Folio propio de cotizaciones — mismo criterio que getNextFolio() de clientes
 // (máximo existente + 1), pero en su propio contador ("COT-0001", "COT-0002"...).
 async function getNextFolioCotizacion(){
@@ -5103,6 +5119,7 @@ function renderCqDayList(dateStr){
         ${puedeConvertir?`<button class="cq-btn-mini" onclick="cqCambiarEstatus('${c.id}','agendada')">Marcar agendada</button>`:""}
         ${puedeConvertir?`<button class="cq-btn-mini solid" onclick="cqConvertirCliente('${c.id}')">Convertir a cliente</button>`:""}
         ${puedeConvertir?`<button class="cq-btn-mini rojo" onclick="cqAbrirNoRegreso('${c.id}')">No regresó</button>`:""}
+        <button class="cq-btn-mini rojo" onclick="eliminarCotizacionFS('${c.id}')">🗑️ Eliminar</button>
       </div>
     </div>`;
   }).join("");
