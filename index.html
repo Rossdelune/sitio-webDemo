@@ -560,7 +560,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.0 · fixScroll</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.1 · fixSubmenu</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -925,7 +925,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <span class="buscador-clear" id="buscar-cliente-clear" onclick="limpiarBuscarCliente()">✕</span>
         </div>
         <div class="buscador-count" id="buscar-cliente-count"></div>
-        <div style="overflow-x:auto;">
+        <div style="overflow-x:auto;" id="clientes-table-wrap">
           <table class="tbl">
             <thead><tr>
               <th>Fecha</th>
@@ -3152,10 +3152,16 @@ function toggleClienteMenu(id){
   if(!menu) return;
   const yaAbierto = menu.style.display==="block";
   cerrarClienteMenus();
-  if(!yaAbierto) menu.style.display="block";
+  if(!yaAbierto){
+    menu.style.display="block";
+    const wrap=document.getElementById("clientes-table-wrap");
+    if(wrap) wrap.style.overflow="visible";
+  }
 }
 function cerrarClienteMenus(){
   document.querySelectorAll(".cliente-menu").forEach(m=>m.style.display="none");
+  const wrap=document.getElementById("clientes-table-wrap");
+  if(wrap) wrap.style.overflow="auto";
 }
 document.addEventListener("click", function(e){
   if(!e.target.closest(".menu-toggle") && !e.target.closest(".cliente-menu")){
