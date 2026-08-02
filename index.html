@@ -560,7 +560,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.1 · fixSubmenu</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.1.1 · fixSubmenú</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -925,7 +925,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <span class="buscador-clear" id="buscar-cliente-clear" onclick="limpiarBuscarCliente()">✕</span>
         </div>
         <div class="buscador-count" id="buscar-cliente-count"></div>
-        <div style="overflow-x:auto;" id="clientes-table-wrap">
+        <div style="overflow-x:auto;">
           <table class="tbl">
             <thead><tr>
               <th>Fecha</th>
@@ -3147,21 +3147,31 @@ async function guardarEdicionCliente(){
 
 // ══ RENDER CLIENTES ══
 // ══ MENÚ DESPLEGABLE DE ACCIONES POR CLIENTE ══
-function toggleClienteMenu(id){
-  const menu = document.getElementById("menu-"+id);
-  if(!menu) return;
-  const yaAbierto = menu.style.display==="block";
+function toggleClienteMenu(id, btnEl){
+  const orig = document.getElementById("menu-"+id);
+  if(!orig) return;
+  const portalActivo = document.getElementById("cliente-menu-portal");
+  const yaAbierto = portalActivo && portalActivo.dataset.forId===id;
   cerrarClienteMenus();
-  if(!yaAbierto){
-    menu.style.display="block";
-    const wrap=document.getElementById("clientes-table-wrap");
-    if(wrap) wrap.style.overflow="visible";
-  }
+  if(yaAbierto) return;
+  const clone = orig.cloneNode(true);
+  clone.removeAttribute("id");
+  clone.id = "cliente-menu-portal";
+  clone.dataset.forId = id;
+  clone.style.display = "block";
+  clone.style.position = "fixed";
+  clone.style.zIndex = "500";
+  document.body.appendChild(clone);
+  const r = btnEl.getBoundingClientRect();
+  let left = r.right - clone.offsetWidth;
+  if(left < 8) left = 8;
+  clone.style.top = (r.bottom + 2) + "px";
+  clone.style.left = left + "px";
 }
 function cerrarClienteMenus(){
-  document.querySelectorAll(".cliente-menu").forEach(m=>m.style.display="none");
-  const wrap=document.getElementById("clientes-table-wrap");
-  if(wrap) wrap.style.overflow="auto";
+  document.querySelectorAll(".cliente-menu").forEach(m=>{ if(m.id!=="cliente-menu-portal") m.style.display="none"; });
+  const portal = document.getElementById("cliente-menu-portal");
+  if(portal) portal.remove();
 }
 document.addEventListener("click", function(e){
   if(!e.target.closest(".menu-toggle") && !e.target.closest(".cliente-menu")){
@@ -3271,13 +3281,13 @@ function renderClientes(lista){
       <td style="font-size:.74rem">${c.elaboracion==="Sobre pedido"?"✓":"—"}</td>
       <td style="position:relative">
         ${c.esNotaSencilla?
-          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}')" title="Más opciones">⋮</button>
+          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}',this)" title="Más opciones">⋮</button>
         <div class="cliente-menu" id="menu-${c.id}" style="display:none">
           <button onclick="verNotaSencillaGuardada('${c.id}');cerrarClienteMenus()">🧾 Ver nota</button>
           ${currentUser.role==="admin"?`<button onclick="eliminarCliente('${c.id}','${c.nombre}');cerrarClienteMenus()" style="color:var(--rojo)">🗑️ Eliminar venta directa</button>`:""}
         </div>`
           :
-          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}')" title="Más opciones">⋮</button>
+          `<button class="ic-btn menu-toggle" onclick="toggleClienteMenu('${c.id}',this)" title="Más opciones">⋮</button>
         <div class="cliente-menu" id="menu-${c.id}" style="display:none">
           <button onclick="verPagos('${c.id}');cerrarClienteMenus()">💳 Pagos</button>
           <button onclick="abrirAbonoModal('${c.id}');cerrarClienteMenus()">📝 Historial de abonos</button>
