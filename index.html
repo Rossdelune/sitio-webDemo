@@ -560,7 +560,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v51.0 · editarPaquete</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v51.1 · especEntrega</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -6964,7 +6964,7 @@ function generarFormatoEntrega(c){
   (c.paquete?.componentes||[]).forEach(comp=>{
     const key = "comp_"+comp.id;
     accesoriosRows += `<tr>
-      <td style="border:1px solid #DDD;padding:.4rem .6rem">${comp.name}${comp.opcion?" — "+comp.opcion:""}</td>
+      <td style="border:1px solid #DDD;padding:.4rem .6rem">${comp.name}${comp.opcion?" — "+comp.opcion:""}${comp.especificacion?" · "+comp.especificacion:""}</td>
       <td style="border:1px solid #DDD;padding:.4rem .6rem;text-align:center">${filaEstado(key)}</td>
     </tr>`;
   });
