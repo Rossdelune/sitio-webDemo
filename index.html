@@ -560,7 +560,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v50.1.1 · fixSubmenú</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v51.0 · editarPaquete</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -2824,6 +2824,13 @@ function abrirEditarCliente(id){
     }
   }
 
+  const pkgTipo = c.paquete?.tipo || "solo";
+  editCurrentPkg = pkgTipo;
+  ["xv","novia","solo","custom"].forEach(t=>{
+    document.getElementById("edit-pb-"+t).classList.toggle("active", t===pkgTipo);
+  });
+  editInitPkgComponents(pkgTipo, c.paquete?.componentes||[]);
+
   initEditAdicionales(c.paquete?.adicionales||[]);
   editToggleParcialidades();
   calcEditTotal();
@@ -2832,6 +2839,68 @@ function abrirEditarCliente(id){
 
 // ══ ADICIONALES EN EDICIÓN ══
 let _editLibreSeq = 0;
+
+// ══ PAQUETE EDITABLE (Editar cliente) ══
+let editCurrentPkg = "solo";
+
+function editSelPkg(type){
+  editCurrentPkg = type;
+  ["xv","novia","solo","custom"].forEach(t=>{
+    document.getElementById("edit-pb-"+t).classList.toggle("active", t===type);
+  });
+  editInitPkgComponents(type, []);
+}
+
+function editInitPkgComponents(type, existingComponentes){
+  const cont = document.getElementById("edit-pkg-components");
+  if(type==="solo"){
+    cont.innerHTML = '<p style="font-size:.8rem;color:#AAA;padding:.5rem 0">Sin paquete — solo vestido.</p>';
+    return;
+  }
+  const items = type==="novia" ? PKG_NOVIA : type==="custom" ? PKG_CUSTOM : PKG_XV;
+  const isCustom = type==="custom";
+  cont.innerHTML = items.map(c=>{
+    const match = existingComponentes.find(e=>e.id===c.id);
+    const checked = existingComponentes.length ? !!match : !isCustom;
+    const opcionSel = match ? match.opcion : c.default;
+    const spec = match ? match.especificacion : "";
+    return `
+    <div class="comp-item" id="edit-ci-${c.id}">
+      <input type="checkbox" class="comp-check" id="edit-chk-${c.id}" ${checked?"checked":""} onchange="editToggleComp('${c.id}')">
+      <div class="comp-body" style="opacity:${checked?"1":".35"}">
+        <div class="comp-name">${c.name}</div>
+        <div class="comp-opts" id="edit-opts-${c.id}">
+          ${c.opts.map(o=>`<button type="button" class="comp-opt ${o===opcionSel?"sel":""}" onclick="editSelOpt('${c.id}','${o}',this)">${o}</button>`).join("")}
+        </div>
+        <input class="comp-spec" placeholder="Especificaciones adicionales..." id="edit-spec-${c.id}" value="${spec||""}">
+      </div>
+    </div>`;
+  }).join("");
+}
+
+function editSelOpt(compId, opt, btn){
+  document.querySelectorAll(`#edit-opts-${compId} .comp-opt`).forEach(b=>b.classList.remove("sel"));
+  btn.classList.add("sel");
+}
+
+function editToggleComp(id){
+  const chk = document.getElementById("edit-chk-"+id);
+  const body = document.querySelector(`#edit-ci-${id} .comp-body`);
+  body.style.opacity = chk.checked ? "1" : ".35";
+}
+
+function getEditPkgData(){
+  if(editCurrentPkg==="solo") return {tipo:"solo", componentes:[]};
+  const items = editCurrentPkg==="novia" ? PKG_NOVIA : editCurrentPkg==="custom" ? PKG_CUSTOM : PKG_XV;
+  const comps = items.map(c=>{
+    const chk = document.getElementById("edit-chk-"+c.id);
+    if(!chk||!chk.checked) return null;
+    const selBtn = document.querySelector(`#edit-opts-${c.id} .comp-opt.sel`);
+    const spec = document.getElementById("edit-spec-"+c.id);
+    return {id:c.id, name:c.name, opcion:selBtn?selBtn.textContent:"", especificacion:spec?spec.value:""};
+  }).filter(Boolean);
+  return {tipo:editCurrentPkg, componentes:comps};
+}
 
 function initEditAdicionales(existing){
   const grid = document.getElementById("edit-add-grid");
@@ -3101,7 +3170,7 @@ async function guardarEdicionCliente(){
             articuloId: window._editArticuloVinculado2||null
           }
         : null,
-      paquete:     {...(original.paquete||{tipo:"solo",componentes:[]}), adicionales:getEditAdicionales()},
+      paquete:     {...getEditPkgData(), adicionales:getEditAdicionales()},
       medidas:     {
         busto:   document.getElementById("edit-busto").value,
         cintura: document.getElementById("edit-cintura").value,
@@ -7860,6 +7929,15 @@ async function waEnviarPrueba(){
         <input type="text" id="edit-ref-anticipo" placeholder="Número de transferencia...">
       </div>
     </div>
+
+    <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Paquete</div>
+    <div class="pkg-selector">
+      <button type="button" class="pkg-btn" onclick="editSelPkg('xv')"    id="edit-pb-xv">Paquete XV</button>
+      <button type="button" class="pkg-btn" onclick="editSelPkg('novia')"  id="edit-pb-novia">Paquete Novia</button>
+      <button type="button" class="pkg-btn" onclick="editSelPkg('solo')"   id="edit-pb-solo">Solo vestido</button>
+      <button type="button" class="pkg-btn" onclick="editSelPkg('custom')" id="edit-pb-custom">Personalizado</button>
+    </div>
+    <div class="pkg-components" id="edit-pkg-components"></div>
 
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Productos / artículos adicionales</div>
     <div id="edit-add-grid"></div>
