@@ -121,6 +121,13 @@ html,body{min-height:100vh;background:var(--crema);font-family:"Lato",sans-serif
   transition:color .2s,border-color .2s;white-space:nowrap;flex-shrink:0;
 }
 .nav-btn .arrow{font-size:.55rem;transition:transform .2s;display:inline-block;}
+.wa-badge{
+  display:none;align-items:center;justify-content:center;
+  min-width:16px;height:16px;padding:0 4px;
+  background:var(--rojo);color:#fff;border-radius:20px;
+  font-size:.62rem;font-weight:700;line-height:1;letter-spacing:0;
+  text-transform:none;
+}
 .nav-btn.open{color:var(--dorado-d);border-color:var(--dorado);}
 .nav-btn.open .arrow{transform:rotate(180deg);}
 .nav-btn:hover{color:var(--dorado-d);}
@@ -560,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · DEMO v53.0 · fixCotizador</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v58.0 · mensajeAutomatico</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -659,7 +666,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     </div>
 
     <div style="position:relative;flex-shrink:0">
-      <button class="nav-btn" id="nb-mensajeria" onclick="toggleNav('mensajeria')">📲 Mensajería <span class="arrow">▾</span></button>
+      <button class="nav-btn" id="nb-mensajeria" onclick="toggleNav('mensajeria')">📲 Mensajería <span id="wa-badge-count" class="wa-badge"></span> <span class="arrow">▾</span></button>
       <div class="subnav" id="sub-mensajeria">
         <button class="sub-item" onclick="goSec('mensajeria-recordatorios')" id="admin-sub-wa-rec">📋 Recordatorios</button>
         <button class="sub-item" onclick="goSec('mensajeria-historial')" id="admin-sub-wa-hist">📜 Historial envíos</button>
@@ -924,6 +931,17 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <input type="text" id="buscar-cliente" placeholder="Buscar por folio o nombre..." oninput="filtrarClientes()">
           <span class="buscador-clear" id="buscar-cliente-clear" onclick="limpiarBuscarCliente()">✕</span>
         </div>
+        <div style="display:flex;align-items:center;gap:.5rem;margin:.5rem .6rem 0;flex-wrap:wrap">
+          <label for="filtro-estatus-cliente" style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Filtrar por estatus:</label>
+          <select id="filtro-estatus-cliente" onchange="filtrarClientes()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)">
+            <option value="">Todos</option>
+            <option value="Pedido Realizado">Pedido Realizado</option>
+            <option value="En Compra">En Compra</option>
+            <option value="En Tienda">En Tienda</option>
+            <option value="Recibido">Recibido</option>
+            <option value="Entregado">Entregado</option>
+          </select>
+        </div>
         <div class="buscador-count" id="buscar-cliente-count"></div>
         <div style="overflow-x:auto;">
           <table class="tbl">
@@ -991,6 +1009,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
         <div class="hdr-row" style="padding:.8rem .6rem .4rem;">
           <div class="card-title" style="margin:0">Pedidos activos</div>
           <button class="btn-new" onclick="openAccesorioModal()">+ Registrar accesorio</button>
+          <button class="btn-sec" id="btn-sync-accesorios" onclick="sincronizarAccesoriosTodosClientes()" title="Revisa TODOS los clientes y crea en esta tabla los accesorios que ya tengan marcados en su pedido pero que todavía no estén aquí. No duplica ni borra nada.">🔄 Sincronizar pendientes</button>
         </div>
         <div style="overflow-x:auto;">
           <table class="tbl">
@@ -1907,9 +1926,22 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
   </div>
 </div>
 
-
+<!-- MODAL AVISO POST-LOGIN: RECORDATORIOS DE PAGO -->
+<div class="overlay" id="modal-wa-aviso" style="z-index:250">
+  <div class="modal" style="max-width:420px">
+    <button type="button" class="btn-close" onclick="closeAvisoWa()">✕</button>
+    <div class="badge" style="background:var(--rojo)">Recordatorios</div>
+    <div class="modal-title" id="wa-aviso-titulo" style="font-size:1.15rem">Recordatorios de pago</div>
+    <div id="wa-aviso-lista" style="max-height:280px;overflow-y:auto;margin-bottom:.6rem"></div>
+    <div id="wa-aviso-nota-worker" style="display:none;font-size:.76rem;color:#888;margin-bottom:.6rem">
+      Avísale a un administrador para que envíe estos recordatorios.
+    </div>
+    <button type="button" class="btn-primary" id="wa-aviso-btn" onclick="irARecordatoriosDesdeAviso()">Ir a Recordatorios</button>
+  </div>
+</div>
 
 <script>
+
 const firebaseConfig = {
   apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
   authDomain: "rossdelune2026.firebaseapp.com",
@@ -1917,8 +1949,9 @@ const firebaseConfig = {
   storageBucket: "rossdelune2026.firebasestorage.app",
   messagingSenderId: "396024136594",
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
-  measurementId: "G-7Y4N4283TT",
+  measurementId: "G-7Y4N4283TT"
 };
+
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
@@ -2189,7 +2222,9 @@ async function doLogin(){
     match.accesos.unshift(now);
     try{await db.collection("users").doc(u).update({accesos:match.accesos});}
     catch(updErr){console.error("No se pudo registrar el acceso en Firestore:",updErr);}
-    currentUser=match;closeLogin();waCargarConfig();enterPanel();
+    currentUser=match;closeLogin();enterPanel();
+    await waCargarConfig();
+    await waRefrescarBadge(true); // true = mostrar el aviso post-login si hay pendientes
   }catch(e){console.error("doLogin error:",e);err.textContent="Error de conexión: "+e.message;btn.innerHTML="Entrar";btn.disabled=false;}
 }
 
@@ -2352,7 +2387,7 @@ function goSec(id){
   if(id==="inv-nuevo"){limpiarFormInv();}
   if(id==="lista-clientes"){renderClientes();}
   if(id==="nuevo-cliente"){limpiarFormularioCliente();}
-  if(id==="mensajeria-recordatorios"){waMostrarRecordatorios();}
+  if(id==="mensajeria-recordatorios"){waMostrarRecordatorios();waRefrescarBadge(false);}
   if(id==="mensajeria-historial"){waLoadHistorial();}
   if(id==="mensajeria-config"){waCargarConfigUI();}
 }
@@ -2647,6 +2682,104 @@ function getAdicionales(){
   }).filter(Boolean);
 }
 
+// ══ SINCRONIZACIÓN AUTOMÁTICA: adicionales del pedido → tabla de Accesorios ══
+// Antes, marcar un artículo adicional (aro, tenis, tiara, etc.) en el pedido de
+// un cliente SOLO sumaba su precio al total — nunca creaba el registro
+// correspondiente en la colección de Accesorios (la que alimenta Pedidos →
+// Accesorios, con su propio seguimiento Pedido Realizado → En Compra → En
+// Tienda → Recibido → Entregado). Eran dos sistemas desconectados: había que
+// abrir "Registrar accesorio" a mano para que apareciera ahí.
+// Esta función se llama automáticamente al guardar o editar un cliente y crea
+// el registro que falte. Es idempotente (no duplica si ya existe uno para ese
+// cliente+tipo) y solo AGREGA — nunca borra uno que ya esté en proceso, para
+// no perder el rastro de una compra en curso si alguien desmarca el checkbox
+// al editar.
+async function sincronizarAccesoriosCliente(cliente){
+  const adicionales = cliente?.paquete?.adicionales || [];
+  if(!adicionales.length) return;
+  try{
+    allAccesorios = await loadAccesoriosFS();
+    const yaExisten = new Set(
+      allAccesorios.filter(a=>a.clienteId===cliente.id).map(a=>(a.tipo||"").trim().toLowerCase())
+    );
+    const faltantes = adicionales.filter(a=>!yaExisten.has((a.nombre||"").trim().toLowerCase()));
+    for(const item of faltantes){
+      const nuevo = {
+        id: "acc_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),
+        fecha: fechaLocalISO(),
+        tipo: item.nombre,
+        cantidad: 1,
+        clienteId: cliente.id,
+        clienteNombre: cliente.nombre,
+        estatus: "Pedido Realizado",
+        registradoPor: currentUser.user,
+        autoGenerado: true
+      };
+      await saveUnAccesorio(nuevo);
+      allAccesorios.push(nuevo);
+    }
+  }catch(e){
+    // No debe romper el guardado del cliente si esto falla — solo se avisa en consola.
+    console.error("No se pudo sincronizar accesorios del cliente:", e);
+  }
+}
+
+// Versión "en lote" de la sincronización de arriba: revisa TODOS los clientes
+// ya existentes (no solo el que se acaba de guardar/editar) y crea en
+// Accesorios los registros que falten. Sirve para ponerse al día una sola vez
+// con los clientes que quedaron desconectados antes de este arreglo — y queda
+// disponible como botón permanente por si vuelve a pasar (importaciones,
+// clientes editados desde otro lado, etc.). Solo admins pueden correrla,
+// porque escribe varios documentos nuevos de golpe.
+async function sincronizarAccesoriosTodosClientes(){
+  if(!currentUser || currentUser.role!=="admin"){
+    toast("Solo un administrador puede ejecutar esta sincronización","err");
+    return;
+  }
+  if(!confirm("Esto va a revisar TODOS los clientes y crear en Accesorios los artículos adicionales que tengan marcados en su pedido y todavía no estén registrados ahí. No se borra ni se duplica nada existente. ¿Continuar?")) return;
+  const btn = document.getElementById("btn-sync-accesorios");
+  const textoOriginal = btn ? btn.textContent : "";
+  if(btn){ btn.disabled=true; btn.textContent="⏳ Sincronizando..."; }
+  try{
+    allAccesorios = await loadAccesoriosFS();
+    allClientes = await loadClientesFS();
+    let creados = 0, clientesTocados = 0;
+    for(const cliente of allClientes){
+      const adicionales = cliente?.paquete?.adicionales || [];
+      if(!adicionales.length) continue;
+      const yaExisten = new Set(
+        allAccesorios.filter(a=>a.clienteId===cliente.id).map(a=>(a.tipo||"").trim().toLowerCase())
+      );
+      const faltantes = adicionales.filter(a=>!yaExisten.has((a.nombre||"").trim().toLowerCase()));
+      if(!faltantes.length) continue;
+      for(const item of faltantes){
+        const nuevo = {
+          id: "acc_"+Date.now()+"_"+Math.random().toString(36).slice(2,7),
+          fecha: cliente.fecha || fechaLocalISO(), // se usa la fecha del pedido original, no la de hoy
+          tipo: item.nombre,
+          cantidad: 1,
+          clienteId: cliente.id,
+          clienteNombre: cliente.nombre,
+          estatus: "Pedido Realizado",
+          registradoPor: currentUser.user,
+          autoGenerado: true
+        };
+        await saveUnAccesorio(nuevo);
+        allAccesorios.push(nuevo);
+        creados++;
+      }
+      clientesTocados++;
+    }
+    toast(`Sincronización completa ✓ — ${creados} accesorio(s) creado(s) en ${clientesTocados} cliente(s)`);
+    renderAccesorios();
+  }catch(e){
+    console.error("sincronizarAccesoriosTodosClientes error:", e);
+    toast("Error durante la sincronización — revisa la consola","err");
+  }finally{
+    if(btn){ btn.disabled=false; btn.textContent=textoOriginal; }
+  }
+}
+
 async function saveCliente(){
   const nombre=document.getElementById("c-nombre").value.trim();
   const msg=document.getElementById("cliente-msg");
@@ -2717,6 +2850,7 @@ async function saveCliente(){
     cliente.folio=String(maxFolio+1).padStart(4,"0");
     await saveUnCliente(cliente);
     allClientes.push(cliente);
+    await sincronizarAccesoriosCliente(cliente);
     // Si este cliente viene de "Convertir a cliente", AHORA sí se cierra el
     // vínculo — nunca antes. Si esto falla, el cliente ya quedó guardado de
     // todas formas (no se rompe el flujo principal por un problema aquí).
@@ -3254,6 +3388,7 @@ async function guardarEdicionCliente(){
       // borra el documento viejo, para no perder el registro si algo falla.
       await eliminarClienteFS({...allClientes[idx], folio:folioAnterior});
     }
+    await sincronizarAccesoriosCliente(allClientes[idx]);
     toast("Cliente actualizado ✓ — Folio "+folioNormalizado);
     window._contratoEditBase64 = null;
     cerrarEditarCliente();
@@ -3425,7 +3560,8 @@ function renderClientes(lista){
   const cEl=document.getElementById("buscar-cliente-count");
   if(cEl){
     const q=(document.getElementById("buscar-cliente")?.value||"").trim();
-    cEl.textContent=q?`${data.length} de ${allClientes.length} clientes`:"";
+    const estatusActivo=(document.getElementById("filtro-estatus-cliente")?.value||"");
+    cEl.textContent=(q||estatusActivo)?`${data.length} de ${allClientes.length} clientes`:"";
   }
 }
 function normTexto(s){
@@ -3435,10 +3571,16 @@ function filtrarClientes(){
   const inp=document.getElementById("buscar-cliente");
   const q=normTexto(inp.value.trim());
   document.getElementById("buscar-cliente-clear").style.display=q?"block":"none";
-  if(!q){renderClientes();return;}
-  const filtrados=allClientes.filter(c=>
-    normTexto(c.nombre).includes(q) || normTexto(c.folio).includes(q)
-  );
+  const estatusSel=document.getElementById("filtro-estatus-cliente");
+  const estatusFiltro=estatusSel?estatusSel.value:"";
+  if(!q && !estatusFiltro){renderClientes();return;}
+  let filtrados=allClientes;
+  if(q){
+    filtrados=filtrados.filter(c=>normTexto(c.nombre).includes(q) || normTexto(c.folio).includes(q));
+  }
+  if(estatusFiltro){
+    filtrados=filtrados.filter(c=>(c.estatus||"")===estatusFiltro);
+  }
   renderClientes(filtrados);
 }
 function limpiarBuscarCliente(){
@@ -4041,8 +4183,13 @@ async function guardarAbono(){
   const msg = document.getElementById("abono-msg");
   msg.textContent="";
   const estabaEditando = editandoAbonoIndex !== null;
-  if(estabaEditando && (!monto || monto<=0)){msg.textContent="Escribe un monto válido.";return;}
-  if(monto && monto>0 && !fecha){msg.textContent="Selecciona la fecha del abono.";return;}
+  // Antes, esta validación solo corría si estabas EDITANDO un abono existente.
+  // Al registrar uno nuevo con el campo de monto vacío o en 0, no se mostraba
+  // ningún error: el botón simplemente cerraba el modal y mostraba
+  // "Abono registrado ✓" sin haber guardado ningún pago real — por eso parecía
+  // que "no dejaba registrar abonos". Ahora el monto se exige siempre.
+  if(!monto || monto<=0){msg.textContent="Escribe un monto válido para registrar el abono.";return;}
+  if(!fecha){msg.textContent="Selecciona la fecha del abono.";return;}
   try{
     allClientes = await loadClientesFS();
     const cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
@@ -6959,12 +7106,18 @@ async function guardarArticuloInv(){
       if(filasExtra.length){
         const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
         const modeloNorm = (camposComunes.modelo||"").trim().toLowerCase();
+        // Se agrega colorNorm a la comparación: antes solo se comparaba modelo+talla,
+        // así que un modelo+talla ya existente en OTRO color se detectaba como "el mismo
+        // artículo" y se fusionaba con él (sumando cantidad) en vez de crear uno nuevo,
+        // descartando el color recién escrito en el formulario.
+        const colorNorm = (camposComunes.colorNombre||"").trim().toLowerCase();
         let agregadas = 0, actualizadas = 0;
         for(let i=0;i<filasExtra.length;i++){
           const tallaNorm = (filasExtra[i].talla||"").trim().toLowerCase();
           const existente = todos.find(x =>
             (x.modelo||"").trim().toLowerCase()===modeloNorm &&
-            (x.talla||"").trim().toLowerCase()===tallaNorm
+            (x.talla||"").trim().toLowerCase()===tallaNorm &&
+            (x.colorNombre||"").trim().toLowerCase()===colorNorm
           );
           if(existente){
             // Ya existe esa talla para este modelo — se suma la cantidad, no se duplica
@@ -7024,13 +7177,18 @@ async function guardarArticuloInv(){
 
     const ahora = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
     const modeloNorm = (camposComunes.modelo||"").trim().toLowerCase();
+    // Mismo fix que arriba: el color entra a la comparación de "¿ya existe este
+    // artículo?" para que un modelo+talla en un color nuevo se guarde como artículo
+    // independiente en vez de fusionarse con el que ya existía en otro color.
+    const colorNorm = (camposComunes.colorNombre||"").trim().toLowerCase();
     let todosFinal = [...inv];
     let agregadas2 = 0, actualizadas2 = 0;
     for(let i=0;i<filas.length;i++){
       const tallaNorm = (filas[i].talla||"").trim().toLowerCase();
       const existente = todosFinal.find(x =>
         (x.modelo||"").trim().toLowerCase()===modeloNorm &&
-        (x.talla||"").trim().toLowerCase()===tallaNorm
+        (x.talla||"").trim().toLowerCase()===tallaNorm &&
+        (x.colorNombre||"").trim().toLowerCase()===colorNorm
       );
       if(existente){
         const actualizado = {
@@ -7889,20 +8047,112 @@ function waCalcularPendientes(){
   return pendientes;
 }
 
-// Renderiza la lista de recordatorios pendientes — solo informativa, sin botones de envío
-function waMostrarRecordatorios(){
+// Devuelve la fecha de hoy en el mismo formato usado en waBanderas (dd/mm/aaaa)
+function waFechaHoy(){
+  return new Date().toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"});
+}
+
+// Consulta qué clientes ya fueron marcados como enviados hoy (automático o manual)
+// Devuelve un Set con los IDs de documento de waBanderas (clienteId_dd-mm-aaaa)
+async function waObtenerBanderasHoy(){
+  const hoy = waFechaHoy();
+  const set = new Set();
+  try{
+    const snap = await db.collection("waBanderas").where("fecha","==",hoy).get();
+    snap.forEach(doc=>set.add(doc.id));
+  }catch(e){ console.warn("waObtenerBanderasHoy:", e); }
+  return set;
+}
+
+// Marca o desmarca manualmente a un cliente como "enviado hoy" en waBanderas
+async function waSetBanderaHoy(clienteId, clienteNombre, marcar){
+  const hoy = waFechaHoy();
+  const docId = clienteId + "_" + hoy.replace(/\//g,"-");
+  try{
+    if(marcar){
+      await db.collection("waBanderas").doc(docId).set({clienteId, clienteNombre, fecha:hoy, enviado:true, manual:true});
+    } else {
+      await db.collection("waBanderas").doc(docId).delete();
+    }
+  }catch(e){ console.warn("waSetBanderaHoy:", e); }
+}
+
+// Clic en "📲 Enviar por WhatsApp" — abre el wa.me y marca el envío automáticamente
+async function waMarcarComoEnviado(clienteId, clienteNombre){
+  await waSetBanderaHoy(clienteId, clienteNombre, true);
+  await waRegistrarEnvio(clienteId, clienteNombre, "", "", "enviado (wa.me manual)");
+  waMostrarRecordatorios();
+  waRefrescarBadge(false);
+}
+
+// Checkbox "✓ Marcar como enviado" — control manual independiente del link
+async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre){
+  checkbox.disabled = true;
+  await waSetBanderaHoy(clienteId, clienteNombre, checkbox.checked);
+  if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", "enviado (marcado manual)");
+  waMostrarRecordatorios();
+  waRefrescarBadge(false);
+}
+
+// Recalcula el badge rojo del nav y, si se pide, muestra el aviso post-login.
+// Solo cuenta clientes que todavía NO tienen bandera de "enviado" hoy.
+async function waRefrescarBadge(mostrarAviso){
+  const hoy = waFechaHoy();
+  const calculados = waCalcularPendientes();
+  const banderasHoy = await waObtenerBanderasHoy();
+  const pendientesReales = calculados.filter(p=>{
+    const clienteId = p.cliente.id || p.cliente.folio;
+    return clienteId && !banderasHoy.has(clienteId+"_"+hoy.replace(/\//g,"-"));
+  });
+  window._waPendientesHoy = pendientesReales;
+
+  const badge = document.getElementById("wa-badge-count");
+  if(badge){
+    if(pendientesReales.length){
+      badge.textContent = pendientesReales.length>99 ? "99+" : pendientesReales.length;
+      badge.style.display = "inline-flex";
+    } else {
+      badge.style.display = "none";
+    }
+  }
+  if(mostrarAviso && pendientesReales.length) waMostrarAvisoLogin(pendientesReales);
+}
+
+// Muestra el modal de aviso justo después de iniciar sesión
+function waMostrarAvisoLogin(pendientes){
+  const esAdmin = currentUser && currentUser.role==="admin";
+  document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
+      <span>${p.cliente.nombre||"—"} <span style="color:#888;font-size:.72rem">Folio ${p.cliente.folio||"—"}</span></span>
+      <span style="color:var(--dorado-d);font-size:.72rem">Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}</span>
+    </div>`).join("");
+  document.getElementById("wa-aviso-titulo").textContent =
+    `📲 Tienes ${pendientes.length} recordatorio${pendientes.length===1?"":"s"} de pago pendiente${pendientes.length===1?"":"s"} hoy`;
+  document.getElementById("wa-aviso-btn").style.display = esAdmin ? "" : "none";
+  document.getElementById("wa-aviso-nota-worker").style.display = esAdmin ? "none" : "";
+  document.getElementById("modal-wa-aviso").classList.add("open");
+}
+function closeAvisoWa(){
+  document.getElementById("modal-wa-aviso").classList.remove("open");
+}
+function irARecordatoriosDesdeAviso(){
+  closeAvisoWa();
+  toggleNav("mensajeria");
+  goSec("mensajeria-recordatorios");
+}
+
+// Renderiza la lista de recordatorios pendientes.
+// Modo manual (sin token Meta): cada tarjeta trae el enlace wa.me/ + checkbox "marcar como enviado" — solo visibles para admin.
+// Modo automático (con token Meta): la lista se mantiene como bitácora informativa del envío ya realizado.
+async function waMostrarRecordatorios(){
   const lista = document.getElementById("wa-recordatorios-lista");
   const badge = document.getElementById("wa-modo-badge");
   const esReal = waModoReal();
+  const esAdmin = currentUser && currentUser.role==="admin";
 
   badge.innerHTML = esReal
     ? '<span style="color:var(--verde)">✅ Mensajería activa — los mensajes se envían automáticamente al iniciar sesión</span>'
-    : '<span style="color:var(--dorado-d)">🔶 Mensajería inactiva — ingresa el token en ⚙️ Configuración WA para activar</span>';
-
-  if(!esReal){
-    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin configuración activa. Los recordatorios se mostrarán aquí una vez que configures las credenciales.</p>';
-    return;
-  }
+    : '<span style="color:var(--dorado-d)">🔶 Modo manual — envía los recordatorios con el enlace de WhatsApp</span>';
 
   const pendientes = waCalcularPendientes();
   if(!pendientes.length){
@@ -7910,24 +8160,45 @@ function waMostrarRecordatorios(){
     return;
   }
 
+  lista.innerHTML = '<span class="spinner"></span> Cargando estado de envíos...';
+  const hoy = waFechaHoy();
+  const banderasHoy = await waObtenerBanderasHoy();
+
   lista.innerHTML = pendientes.map(p=>{
+    const clienteId  = p.cliente.id || p.cliente.folio || "";
+    const flagId     = clienteId + "_" + hoy.replace(/\//g,"-");
+    const yaMarcado  = banderasHoy.has(flagId);
     const monto      = "$" + p.saldo.toLocaleString("es-MX");
     const fechaTexto = waFormatearFecha(p.fechaRef);
     const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
     const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
-    const numDisplay = numero
-      ? numero
-      : '<span style="color:var(--rojo)">Sin número registrado</span>';
-    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
+    const numeroFinal= numero ? (numero.startsWith("52")?numero:"52"+numero) : "";
+    const numDisplay = numero ? numero : '<span style="color:var(--rojo)">Sin número registrado</span>';
+    const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
+    const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
+
+    const accionesAdmin = esAdmin ? `
+      <div style="display:flex;align-items:center;gap:.9rem;margin-top:.6rem;flex-wrap:wrap">
+        ${linkWa
+          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}')">📲 Enviar por WhatsApp</a>`
+          : '<span style="font-size:.72rem;color:var(--rojo)">Sin número — no se puede generar el enlace</span>'}
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#666;cursor:pointer">
+          <input type="checkbox" ${yaMarcado?"checked":""} onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}')">
+          ✓ Marcar como enviado
+        </label>
+      </div>` : "";
+
+    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem;${yaMarcado?"opacity:.6":""}">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
         <div>
           <strong style="font-size:.9rem">${p.cliente.nombre||"—"}</strong>
           <span style="font-size:.72rem;color:#888;margin-left:.5rem">Folio ${p.cliente.folio||"—"}</span>
         </div>
-        <span style="font-size:.7rem;background:#E8F8EE;color:var(--verde);border-radius:20px;padding:.18rem .7rem">Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}</span>
+        <span style="font-size:.7rem;background:${yaMarcado?"#EEE":"#E8F8EE"};color:${yaMarcado?"#888":"var(--verde)"};border-radius:20px;padding:.18rem .7rem">${yaMarcado?"✓ Enviado hoy":`Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`}</span>
       </div>
       <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
       <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6">${msgTexto}</div>
+      ${accionesAdmin}
     </div>`;
   }).join("");
 }
