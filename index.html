@@ -567,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v58.0 · mensajeAutomatico</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v58.1 · fixHitosRecordatorio</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1951,6 +1951,7 @@ const firebaseConfig = {
   appId: "1:396024136594:web:05286384348f6fbbe4374b",
   measurementId: "G-7Y4N4283TT"
 };
+
 
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
@@ -7930,16 +7931,12 @@ async function waCargarConfig(){
   }catch(e){ console.warn("waCargarConfig:", e); }
 }
 
-// Envío automático al login — revisa pendientes y envía solo los que no tienen bandera de hoy
+// Envío automático al login — revisa pendientes (ya filtrados por hito, ver waCalcularPendientes) y los envía
 async function waEnviarAutomatico(){
-  const hoy = new Date().toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"});
-  const pendientes = waCalcularPendientes();
+  const pendientes = await waCalcularPendientes();
   for(const p of pendientes){
     const clienteId = p.cliente.id || p.cliente.folio;
     if(!clienteId) continue;
-    // Revisar si ya se envió hoy para este cliente
-    const bandSnap = await db.collection("waBanderas").doc(clienteId+"_"+hoy.replace(/\//g,"-")).get();
-    if(bandSnap.exists) continue; // Ya enviado hoy, no repetir
     const numero = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
     if(!numero) continue;
     const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
@@ -7956,10 +7953,8 @@ async function waEnviarAutomatico(){
       });
       const j = await r.json();
       if(r.ok){
-        // Guardar bandera para no repetir hoy
-        await db.collection("waBanderas").doc(clienteId+"_"+hoy.replace(/\//g,"-")).set({
-          clienteId, clienteNombre:p.cliente.nombre, fecha:hoy, enviado:true
-        });
+        // Marca el hito específico (7 días, 1 día, etc.) como avisado — no la fecha de hoy
+        await waSetBanderaHito(clienteId, p.cliente.nombre, p.hito, true);
         await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
       }
     }catch(e){ console.warn("waEnviarAutomatico error:", p.cliente.nombre, e); }
@@ -8030,80 +8025,92 @@ function waGenerarMensaje(nombre, monto, fechaTexto){
   return `Hola ${nombre} 👋\nEsperamos que te encuentres muy bien. Te recordamos que tienes un pago pendiente de ${monto}, con fecha límite el ${fechaTexto}.\nTe agradeceríamos mucho realizar tu pago antes de la fecha indicada para mantener tu cuenta al corriente y evitar cargos adicionales.\nSi tienes alguna duda o necesitas apoyo, estamos para ayudarte: https://wa.me/${soporte}\n🌙 Ross de Lune.`;
 }
 
-// Calcula qué clientes necesitan recordatorio hoy según los días configurados
-function waCalcularPendientes(){
+// Calcula qué clientes tienen un hito de aviso CRUZADO (faltan <= X días, incluye vencidos)
+// que todavía no ha sido marcado como avisado. Si un cliente cruzó varios hitos sin marcar
+// ninguno (ej. se saltaron 7 días sin entrar a la app), solo se muestra el hito MÁS URGENTE
+// pendiente — no se repite la misma clienta varias veces en la lista.
+async function waCalcularPendientes(){
   const pendientes = [];
-  const dias = _waConfig.dias || [15,7,3,1];
+  const dias = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b); // ascendente: más urgente primero
+  const banderasPorCliente = await waObtenerBanderasHitos();
+
   (allClientes||[]).forEach(c=>{
     if(c.estatus === "Entregado") return;
     const saldo = Number(c.precio||0) - Number(c.anticipo||0);
     if(saldo <= 0) return; // Sin saldo pendiente, no aplica
+    const clienteId = c.id || c.folio;
+    if(!clienteId) return;
     const fechaRef = c.fechaLimite || c.entrega;
     const dr = waDiasRestantes(fechaRef);
-    if(dr !== null && dias.includes(dr)){
-      pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef });
-    }
+    if(dr === null) return;
+
+    const marcados = banderasPorCliente[clienteId] || new Set();
+    const cruzados = dias.filter(h => dr <= h); // hitos ya alcanzados o pasados (dr negativo = vencido)
+    if(!cruzados.length) return; // aún falta mucho para el primer hito, no aplica todavía
+    const hitoPendiente = cruzados.find(h => !marcados.has(h));
+    if(hitoPendiente === undefined) return; // ya se marcaron todos los hitos que cruzó
+
+    pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:hitoPendiente });
   });
   return pendientes;
 }
 
-// Devuelve la fecha de hoy en el mismo formato usado en waBanderas (dd/mm/aaaa)
+// Devuelve la fecha/hora actual en formato legible (solo para guardar cuándo se marcó, no para comparar)
 function waFechaHoy(){
   return new Date().toLocaleDateString("es-MX",{timeZone:"America/Mexico_City",year:"numeric",month:"2-digit",day:"2-digit"});
 }
 
-// Consulta qué clientes ya fueron marcados como enviados hoy (automático o manual)
-// Devuelve un Set con los IDs de documento de waBanderas (clienteId_dd-mm-aaaa)
-async function waObtenerBanderasHoy(){
-  const hoy = waFechaHoy();
-  const set = new Set();
+// Consulta qué hitos (7 días, 1 día, etc.) ya fueron marcados como avisados POR CLIENTE —
+// sin importar en qué fecha calendario se marcaron. Devuelve { clienteId: Set(hitos marcados) }.
+async function waObtenerBanderasHitos(){
+  const map = {};
   try{
-    const snap = await db.collection("waBanderas").where("fecha","==",hoy).get();
-    snap.forEach(doc=>set.add(doc.id));
-  }catch(e){ console.warn("waObtenerBanderasHoy:", e); }
-  return set;
+    const snap = await db.collection("waBanderas").where("tipoBandera","==","hito").get();
+    snap.forEach(doc=>{
+      const d = doc.data();
+      if(!d.clienteId || d.hito===undefined) return;
+      if(!map[d.clienteId]) map[d.clienteId] = new Set();
+      map[d.clienteId].add(d.hito);
+    });
+  }catch(e){ console.warn("waObtenerBanderasHitos:", e); }
+  return map;
 }
 
-// Marca o desmarca manualmente a un cliente como "enviado hoy" en waBanderas
-async function waSetBanderaHoy(clienteId, clienteNombre, marcar){
-  const hoy = waFechaHoy();
-  const docId = clienteId + "_" + hoy.replace(/\//g,"-");
+// Marca o desmarca el hito de un cliente como avisado (ej. "ya se avisó el de 7 días a Laura").
+// El ID del documento NO lleva fecha — por eso el aviso nunca se pierde si no entras el día exacto.
+async function waSetBanderaHito(clienteId, clienteNombre, hito, marcar){
+  const docId = clienteId + "_h" + hito;
   try{
     if(marcar){
-      await db.collection("waBanderas").doc(docId).set({clienteId, clienteNombre, fecha:hoy, enviado:true, manual:true});
+      await db.collection("waBanderas").doc(docId).set({
+        clienteId, clienteNombre, hito, tipoBandera:"hito", marcadoEl:waFechaHoy()
+      });
     } else {
       await db.collection("waBanderas").doc(docId).delete();
     }
-  }catch(e){ console.warn("waSetBanderaHoy:", e); }
+  }catch(e){ console.warn("waSetBanderaHito:", e); }
 }
 
-// Clic en "📲 Enviar por WhatsApp" — abre el wa.me y marca el envío automáticamente
-async function waMarcarComoEnviado(clienteId, clienteNombre){
-  await waSetBanderaHoy(clienteId, clienteNombre, true);
-  await waRegistrarEnvio(clienteId, clienteNombre, "", "", "enviado (wa.me manual)");
+// Clic en "📲 Enviar por WhatsApp" — abre el wa.me y marca ese hito específico como avisado
+async function waMarcarComoEnviado(clienteId, clienteNombre, hito){
+  await waSetBanderaHito(clienteId, clienteNombre, hito, true);
+  await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, aviso ${hito}d)`);
   waMostrarRecordatorios();
   waRefrescarBadge(false);
 }
 
-// Checkbox "✓ Marcar como enviado" — control manual independiente del link
-async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre){
+// Checkbox "✓ Marcar como enviado" — mismo efecto que el link, sin abrir WhatsApp
+async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, hito){
   checkbox.disabled = true;
-  await waSetBanderaHoy(clienteId, clienteNombre, checkbox.checked);
-  if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", "enviado (marcado manual)");
+  await waSetBanderaHito(clienteId, clienteNombre, hito, checkbox.checked);
+  if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hito}d)`);
   waMostrarRecordatorios();
   waRefrescarBadge(false);
 }
 
-// Recalcula el badge rojo del nav y, si se pide, muestra el aviso post-login.
-// Solo cuenta clientes que todavía NO tienen bandera de "enviado" hoy.
+// Recalcula el badge rojo del nav y, si se pide, muestra el aviso post-login
 async function waRefrescarBadge(mostrarAviso){
-  const hoy = waFechaHoy();
-  const calculados = waCalcularPendientes();
-  const banderasHoy = await waObtenerBanderasHoy();
-  const pendientesReales = calculados.filter(p=>{
-    const clienteId = p.cliente.id || p.cliente.folio;
-    return clienteId && !banderasHoy.has(clienteId+"_"+hoy.replace(/\//g,"-"));
-  });
+  const pendientesReales = await waCalcularPendientes();
   window._waPendientesHoy = pendientesReales;
 
   const badge = document.getElementById("wa-badge-count");
@@ -8121,11 +8128,15 @@ async function waRefrescarBadge(mostrarAviso){
 // Muestra el modal de aviso justo después de iniciar sesión
 function waMostrarAvisoLogin(pendientes){
   const esAdmin = currentUser && currentUser.role==="admin";
-  document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>`
-    <div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
+  document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>{
+    const estadoTexto = p.diasRestantes < 0
+      ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+      : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`;
+    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
       <span>${p.cliente.nombre||"—"} <span style="color:#888;font-size:.72rem">Folio ${p.cliente.folio||"—"}</span></span>
-      <span style="color:var(--dorado-d);font-size:.72rem">Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}</span>
-    </div>`).join("");
+      <span style="color:var(--dorado-d);font-size:.72rem">${estadoTexto} · aviso ${p.hito}d</span>
+    </div>`;
+  }).join("");
   document.getElementById("wa-aviso-titulo").textContent =
     `📲 Tienes ${pendientes.length} recordatorio${pendientes.length===1?"":"s"} de pago pendiente${pendientes.length===1?"":"s"} hoy`;
   document.getElementById("wa-aviso-btn").style.display = esAdmin ? "" : "none";
@@ -8142,8 +8153,9 @@ function irARecordatoriosDesdeAviso(){
 }
 
 // Renderiza la lista de recordatorios pendientes.
-// Modo manual (sin token Meta): cada tarjeta trae el enlace wa.me/ + checkbox "marcar como enviado" — solo visibles para admin.
-// Modo automático (con token Meta): la lista se mantiene como bitácora informativa del envío ya realizado.
+// Solo aparecen aquí las que tienen un hito CRUZADO Y AÚN NO MARCADO — al marcarlas desaparecen
+// de esta lista hasta que crucen el siguiente hito (ej. de 7 días a 1 día).
+// Modo manual: enlace wa.me/ + checkbox, ambos solo visibles para admin.
 async function waMostrarRecordatorios(){
   const lista = document.getElementById("wa-recordatorios-lista");
   const badge = document.getElementById("wa-modo-badge");
@@ -8154,20 +8166,16 @@ async function waMostrarRecordatorios(){
     ? '<span style="color:var(--verde)">✅ Mensajería activa — los mensajes se envían automáticamente al iniciar sesión</span>'
     : '<span style="color:var(--dorado-d)">🔶 Modo manual — envía los recordatorios con el enlace de WhatsApp</span>';
 
-  const pendientes = waCalcularPendientes();
+  lista.innerHTML = '<span class="spinner"></span> Calculando recordatorios...';
+  const pendientes = await waCalcularPendientes();
+
   if(!pendientes.length){
-    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">No hay recordatorios pendientes para hoy según los días configurados.</p>';
+    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">No hay recordatorios pendientes por enviar.</p>';
     return;
   }
 
-  lista.innerHTML = '<span class="spinner"></span> Cargando estado de envíos...';
-  const hoy = waFechaHoy();
-  const banderasHoy = await waObtenerBanderasHoy();
-
   lista.innerHTML = pendientes.map(p=>{
     const clienteId  = p.cliente.id || p.cliente.folio || "";
-    const flagId     = clienteId + "_" + hoy.replace(/\//g,"-");
-    const yaMarcado  = banderasHoy.has(flagId);
     const monto      = "$" + p.saldo.toLocaleString("es-MX");
     const fechaTexto = waFormatearFecha(p.fechaRef);
     const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
@@ -8176,25 +8184,30 @@ async function waMostrarRecordatorios(){
     const numDisplay = numero ? numero : '<span style="color:var(--rojo)">Sin número registrado</span>';
     const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
     const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
+    const vencido     = p.diasRestantes < 0;
+    const etiqueta    = (vencido
+        ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+        : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`)
+      + ` · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
 
     const accionesAdmin = esAdmin ? `
       <div style="display:flex;align-items:center;gap:.9rem;margin-top:.6rem;flex-wrap:wrap">
         ${linkWa
-          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}')">📲 Enviar por WhatsApp</a>`
+          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}',${p.hito})">📲 Enviar por WhatsApp</a>`
           : '<span style="font-size:.72rem;color:var(--rojo)">Sin número — no se puede generar el enlace</span>'}
         <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#666;cursor:pointer">
-          <input type="checkbox" ${yaMarcado?"checked":""} onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}')">
+          <input type="checkbox" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}',${p.hito})">
           ✓ Marcar como enviado
         </label>
       </div>` : "";
 
-    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem;${yaMarcado?"opacity:.6":""}">
+    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
       <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
         <div>
           <strong style="font-size:.9rem">${p.cliente.nombre||"—"}</strong>
           <span style="font-size:.72rem;color:#888;margin-left:.5rem">Folio ${p.cliente.folio||"—"}</span>
         </div>
-        <span style="font-size:.7rem;background:${yaMarcado?"#EEE":"#E8F8EE"};color:${yaMarcado?"#888":"var(--verde)"};border-radius:20px;padding:.18rem .7rem">${yaMarcado?"✓ Enviado hoy":`Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`}</span>
+        <span style="font-size:.7rem;background:${vencido?"#FBEAEA":"#E8F8EE"};color:${vencido?"var(--rojo)":"var(--verde)"};border-radius:20px;padding:.18rem .7rem">${etiqueta}</span>
       </div>
       <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
       <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6">${msgTexto}</div>
