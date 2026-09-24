@@ -1,0 +1,8 @@
+# 1. Ignorar todos los archivos y carpetas
+*
+
+# 2. Excepción: Permitir únicamente el archivo index.html
+!index.html
+
+# 3. Excepción: Permitir el archivo .gitignore
+!.gitignore
