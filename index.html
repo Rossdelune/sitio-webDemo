@@ -567,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.0 · fixMensajeria</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · demo v60.1 · fixRecordatoriosMorosos</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1545,6 +1545,11 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
           <input type="text" id="wa-cfg-dias" placeholder="Ej: 15,7,3,1">
           <div style="font-size:.68rem;color:#AAA;margin-top:.3rem">Separados por coma. Se envía recordatorio cuando faltan exactamente esos días para la fecha límite de pago.</div>
         </div>
+        <div class="field">
+          <label>Recordatorio para clientas morosas (días)</label>
+          <input type="number" id="wa-cfg-dias-morosa" placeholder="Ej: 7" min="0">
+          <div style="font-size:.68rem;color:#AAA;margin-top:.3rem">Después de avisar todos los hitos de arriba, si la clienta sigue debiendo se le seguirá recordando cada estos días. Escribe 0 para desactivar.</div>
+        </div>
         <div class="msg-err" id="wa-cfg-msg" style="margin-top:.5rem"></div>
         <button class="btn-primary" onclick="waGuardarConfig()" style="margin-top:.8rem">💾 Guardar configuración</button>
       </div>
@@ -1952,11 +1957,11 @@ const firebaseConfig = {
   measurementId: "G-7Y4N4283TT"
 };
 
-
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
+//if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
+
 // Instancia secundaria de Firebase, SOLO para verificar credenciales de un
 // segundo admin (modal de autorización de supervisor) sin cerrar la sesión
 // del usuario que ya inició sesión — signInWithEmailAndPassword en la
@@ -4230,6 +4235,9 @@ async function guardarAbono(){
       c.fechaLimite = d.toISOString().split("T")[0];
     }
     await saveUnCliente(c);
+    // Si esta vez se otorgó prórroga, se limpian las banderas de hitos para que
+    // la clienta vuelva a la ventana normal de avisos con su nueva fecha límite.
+    if(proroga) await waBorrarBanderasHitosCliente(abonoClienteId);
     closeAbonoModal();
     renderPagosPendientes();
     renderHistorialPagos();
@@ -7930,7 +7938,8 @@ let _waConfig = {
   phoneNumberId: "",
   token: "",
   numeroSoporte: "529212550819",
-  dias: [15, 7, 3, 1]
+  dias: [15, 7, 3, 1],
+  diasMorosa: 0
 };
 
 // Carga la config desde Firestore al iniciar sesión y dispara envío automático si hay token
@@ -7943,6 +7952,7 @@ async function waCargarConfig(){
       _waConfig.token          = d.token          || "";
       _waConfig.numeroSoporte  = d.numeroSoporte  || "529212550819";
       _waConfig.dias           = d.dias           || [15,7,3,1];
+      _waConfig.diasMorosa     = Number(d.diasMorosa) || 0;
     }
     // Si hay token configurado, disparar envío automático
     if(waModoReal()) await waEnviarAutomatico();
@@ -7971,8 +7981,12 @@ async function waEnviarAutomatico(){
       });
       const j = await r.json();
       if(r.ok){
-        // Marca el hito específico (7 días, 1 día, etc.) como avisado — no la fecha de hoy
-        await waSetBanderaHito(clienteId, p.cliente.nombre, p.hito, true);
+        // Marca el hito específico (7 días, 1 día, etc.) como avisado — o el re-aviso moroso
+        if(p.esMorosa){
+          await waSetBanderaMorosa(clienteId, p.cliente.nombre);
+        } else {
+          await waSetBanderaHito(clienteId, p.cliente.nombre, p.hito, true);
+        }
         await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
       }
     }catch(e){ console.warn("waEnviarAutomatico error:", p.cliente.nombre, e); }
@@ -7987,6 +8001,7 @@ function waCargarConfigUI(){
   document.getElementById("wa-cfg-token").value          = _waConfig.token          || "";
   document.getElementById("wa-cfg-numero-soporte").value = _waConfig.numeroSoporte  || "529212550819";
   document.getElementById("wa-cfg-dias").value           = (_waConfig.dias || [15,7,3,1]).join(",");
+  document.getElementById("wa-cfg-dias-morosa").value    = _waConfig.diasMorosa || "";
   document.getElementById("wa-cfg-msg").textContent      = "";
   document.getElementById("wa-test-resultado").textContent = "";
   // Mostrar vista previa del mensaje con datos de ejemplo
@@ -8003,11 +8018,12 @@ async function waGuardarConfig(){
   const numeroSoporte = document.getElementById("wa-cfg-numero-soporte").value.trim().replace(/\D/g,"");
   const diasRaw       = document.getElementById("wa-cfg-dias").value.trim();
   const dias = diasRaw.split(",").map(d=>parseInt(d.trim(),10)).filter(d=>!isNaN(d)&&d>0);
+  const diasMorosa = parseInt(document.getElementById("wa-cfg-dias-morosa").value, 10) || 0;
   if(!numeroSoporte){ msg.textContent="Ingresa el número de soporte."; return; }
   if(!dias.length)  { msg.textContent="Ingresa al menos un día de anticipación válido."; return; }
   try{
-    await db.collection("waConfig").doc("config").set({phoneNumberId, token, numeroSoporte, dias});
-    _waConfig = { phoneNumberId, token, numeroSoporte, dias };
+    await db.collection("waConfig").doc("config").set({phoneNumberId, token, numeroSoporte, dias, diasMorosa});
+    _waConfig = { phoneNumberId, token, numeroSoporte, dias, diasMorosa };
     msg.style.color = "var(--verde)";
     msg.textContent = "✓ Configuración guardada correctamente.";
     toast("Configuración WA guardada ✓");
@@ -8054,8 +8070,13 @@ function waGenerarMensaje(nombre, monto, fechaTexto){
 // paquete, los adicionales y los abonos — por eso el monto se quedaba congelado.
 async function waCalcularPendientes(){
   const pendientes = [];
-  const dias = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b); // ascendente: más urgente primero
-  const banderasPorCliente = await waObtenerBanderasHitos();
+  const dias = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b);
+  const diasMorosa = Number(_waConfig.diasMorosa) || 0;
+  const [banderasPorCliente, banderasMorosas] = await Promise.all([
+    waObtenerBanderasHitos(),
+    waObtenerBanderasMorosas()
+  ]);
+  const hoyISO = fechaLocalISO();
 
   (allClientes||[]).forEach(c=>{
     if(c.estatus === "Entregado") return;
@@ -8067,7 +8088,7 @@ async function waCalcularPendientes(){
     const pagado   = Number(c.anticipo||0) + (c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
     const interes  = c.interes==="si" ? total*0.1 : 0;
     const saldo    = (total - pagado) + interes;
-    if(saldo <= 0) return; // Sin saldo pendiente, no aplica
+    if(saldo <= 0) return;
     // ──────────────────────────────────────────────────────────────────
     const clienteId = c.id || c.folio;
     if(!clienteId) return;
@@ -8076,12 +8097,28 @@ async function waCalcularPendientes(){
     if(dr === null) return;
 
     const marcados = banderasPorCliente[clienteId] || new Set();
-    const cruzados = dias.filter(h => dr <= h); // hitos ya alcanzados o pasados (dr negativo = vencido)
-    if(!cruzados.length) return; // aún falta mucho para el primer hito, no aplica todavía
+    const cruzados = dias.filter(h => dr <= h);
+    if(!cruzados.length) return;
     const hitoPendiente = cruzados.find(h => !marcados.has(h));
-    if(hitoPendiente === undefined) return; // ya se marcaron todos los hitos que cruzó
 
-    pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:hitoPendiente });
+    if(hitoPendiente !== undefined){
+      // Camino normal: le queda algún hito por avisar
+      pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:hitoPendiente, esMorosa:false });
+      return;
+    }
+
+    // ── Camino morosa (v60.1) ──
+    // Ya se le avisaron todos los hitos de waConfig.dias[]. Si sigue debiendo
+    // y ya venció su fecha límite, se le sigue recordando cada diasMorosa días.
+    if(diasMorosa <= 0) return;   // config no lo pide
+    if(dr >= 0) return;           // solo cuando ya pasó la fecha límite
+    const fechaUltimoAviso = banderasMorosas[clienteId] || null;
+    if(fechaUltimoAviso){
+      const ms = new Date(hoyISO+"T12:00:00") - new Date(fechaUltimoAviso+"T12:00:00");
+      const diasDesde = Math.round(ms / (1000*60*60*24));
+      if(diasDesde < diasMorosa) return; // todavía no toca re-avisar
+    }
+    pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:"morosa", esMorosa:true });
   });
   return pendientes;
 }
@@ -8110,11 +8147,12 @@ async function waObtenerBanderasHitos(){
 // Marca o desmarca el hito de un cliente como avisado (ej. "ya se avisó el de 7 días a Laura").
 // El ID del documento NO lleva fecha — por eso el aviso nunca se pierde si no entras el día exacto.
 async function waSetBanderaHito(clienteId, clienteNombre, hito, marcar){
-  const docId = clienteId + "_h" + hito;
+  const hitoNum = Number(hito);
+  const docId = clienteId + "_h" + hitoNum;
   try{
     if(marcar){
       await db.collection("waBanderas").doc(docId).set({
-        clienteId, clienteNombre, hito, tipoBandera:"hito", marcadoEl:waFechaHoy()
+        clienteId, clienteNombre, hito: hitoNum, tipoBandera:"hito", marcadoEl:waFechaHoy()
       });
     } else {
       await db.collection("waBanderas").doc(docId).delete();
@@ -8122,19 +8160,85 @@ async function waSetBanderaHito(clienteId, clienteNombre, hito, marcar){
   }catch(e){ console.warn("waSetBanderaHito:", e); }
 }
 
+// ── Banderas de re-aviso moroso (Bug C, v60.1) ──
+// Cuando una clienta ya agotó todos los hitos de waConfig.dias[] y sigue debiendo,
+// se le hace seguimiento con un re-aviso cada diasMorosa días. Se guarda solo la
+// fecha del último re-aviso para poder calcular el próximo.
+async function waObtenerBanderasMorosas(){
+  const map = {};
+  try{
+    const snap = await db.collection("waBanderas").where("tipoBandera","==","morosa").get();
+    snap.forEach(doc=>{
+      const d = doc.data();
+      if(!d.clienteId || !d.fechaISO) return;
+      map[d.clienteId] = d.fechaISO;
+    });
+  }catch(e){ console.warn("waObtenerBanderasMorosas:", e); }
+  return map;
+}
+async function waSetBanderaMorosa(clienteId, clienteNombre){
+  const docId = clienteId + "_morosa";
+  try{
+    await db.collection("waBanderas").doc(docId).set({
+      clienteId, clienteNombre, tipoBandera:"morosa",
+      fechaISO: fechaLocalISO(),
+      marcadoEl: waFechaHoy()
+    });
+  }catch(e){ console.warn("waSetBanderaMorosa:", e); }
+}
+
+// Borra TODAS las banderas de hitos de un cliente (no toca la bandera morosa).
+// Se usa al otorgar prórroga: la fecha límite se mueve, y con ella se reinicia
+// el ciclo de avisos — así la clienta vuelve a la ventana normal 15/7/3/1 días.
+async function waBorrarBanderasHitosCliente(clienteId){
+  try{
+    const snap = await db.collection("waBanderas")
+      .where("clienteId","==",clienteId)
+      .where("tipoBandera","==","hito")
+      .get();
+    if(snap.empty) return;
+    const batch = db.batch();
+    snap.forEach(doc => batch.delete(doc.ref));
+    await batch.commit();
+  }catch(e){ console.warn("waBorrarBanderasHitosCliente:", e); }
+}
+
 // Clic en "📲 Enviar por WhatsApp" — abre el wa.me y marca ese hito específico como avisado
 async function waMarcarComoEnviado(clienteId, clienteNombre, hito){
-  await waSetBanderaHito(clienteId, clienteNombre, hito, true);
-  await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, aviso ${hito}d)`);
-  waMostrarRecordatorios();
+  // 1) Marcar el checkbox visualmente en la fila (si existe en el DOM)
+  const chk = document.getElementById(`chk-env-${clienteId}-${hito}`);
+  if(chk){ chk.checked = true; chk.disabled = true; }
+
+  // 2) Guardar la bandera en Firestore
+  if(hito === "morosa"){
+    await waSetBanderaMorosa(clienteId, clienteNombre);
+    await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, re-aviso morosa)`);
+  } else {
+    const hitoNum = Number(hito);
+    await waSetBanderaHito(clienteId, clienteNombre, hitoNum, true);
+    await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, aviso ${hitoNum}d)`);
+  }
+
+  // 3) Refrescar SOLO el badge rojo del nav.
+  //    NO redibujamos la lista: la fila queda visible con el check marcado
+  //    hasta que el usuario recargue manualmente la página.
   waRefrescarBadge(false);
 }
 
 // Checkbox "✓ Marcar como enviado" — mismo efecto que el link, sin abrir WhatsApp
 async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, hito){
   checkbox.disabled = true;
-  await waSetBanderaHito(clienteId, clienteNombre, hito, checkbox.checked);
-  if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hito}d)`);
+  if(hito === "morosa"){
+    if(checkbox.checked){
+      await waSetBanderaMorosa(clienteId, clienteNombre);
+      await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, re-aviso morosa)`);
+    }
+    // Si desmarca, no borramos la bandera morosa: la fecha del último re-aviso se conserva.
+  } else {
+    const hitoNum = Number(hito);
+    await waSetBanderaHito(clienteId, clienteNombre, hitoNum, checkbox.checked);
+    if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hitoNum}d)`);
+  }
   waMostrarRecordatorios();
   waRefrescarBadge(false);
 }
@@ -8160,12 +8264,15 @@ async function waRefrescarBadge(mostrarAviso){
 function waMostrarAvisoLogin(pendientes){
   const esAdmin = currentUser && currentUser.role==="admin";
   document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>{
-    const estadoTexto = p.diasRestantes < 0
-      ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
-      : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`;
+    const estadoTexto = p.esMorosa
+      ? `Vencida hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+      : (p.diasRestantes < 0
+          ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+          : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`);
+    const tipoAviso = p.esMorosa ? "re-aviso morosa" : `aviso ${p.hito}d`;
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
       <span>${p.cliente.nombre||"—"} <span style="color:#888;font-size:.72rem">Folio ${p.cliente.folio||"—"}</span></span>
-      <span style="color:var(--dorado-d);font-size:.72rem">${estadoTexto} · aviso ${p.hito}d</span>
+      <span style="color:var(--dorado-d);font-size:.72rem">${estadoTexto} · ${tipoAviso}</span>
     </div>`;
   }).join("");
   document.getElementById("wa-aviso-titulo").textContent =
@@ -8216,20 +8323,22 @@ async function waMostrarRecordatorios(){
     const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
     const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
     const vencido     = p.diasRestantes < 0;
-    const etiqueta    = (vencido
-        ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
-        : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`)
-      + ` · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
+    const etiqueta    = p.esMorosa
+      ? `Vencida hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"} · re-aviso morosa`
+      : (vencido
+          ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+          : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`)
+        + ` · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
 
     const accionesAdmin = esAdmin ? `
       <div style="display:flex;align-items:center;gap:.9rem;margin-top:.6rem;flex-wrap:wrap">
         ${linkWa
-          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}',${p.hito})">📲 Enviar por WhatsApp</a>`
+          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}','${p.hito}')">📲 Enviar por WhatsApp</a>`
           : '<span style="font-size:.72rem;color:var(--rojo)">Sin número — no se puede generar el enlace</span>'}
         <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#666;cursor:pointer">
-          <input type="checkbox" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}',${p.hito})">
-          ✓ Marcar como enviado
-        </label>
+  <input type="checkbox" id="chk-env-${clienteId}-${p.hito}" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}','${p.hito}')">
+  ✓ Marcar como enviado
+</label>
       </div>` : "";
 
     return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
