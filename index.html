@@ -567,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · demo v60.1 · fixRecordatoriosMorosos</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.2 · vencimientoIncongruente</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1960,7 +1960,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-//if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
+if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
 
 // Instancia secundaria de Firebase, SOLO para verificar credenciales de un
 // segundo admin (modal de autorización de supervisor) sin cerrar la sesión
@@ -8068,6 +8068,50 @@ function waGenerarMensaje(nombre, monto, fechaTexto){
 // número del mensaje de WhatsApp coincida siempre con lo que se ve en pantalla.
 // Antes esta función usaba una fórmula más simple (precio − anticipo) que ignoraba el
 // paquete, los adicionales y los abonos — por eso el monto se quedaba congelado.
+// Calcula cuántos días han pasado desde la última parcialidad que le tocaba
+// pagar a la clienta. Si no tiene parcialidades configuradas, cae al cálculo
+// tradicional (días desde la fecha límite del contrato). Nunca devuelve negativo.
+function waDiasVencidoEfectivo(c){
+  const hoy = new Date(); hoy.setHours(0,0,0,0);
+  const esParcialidades = (c.sispago || "").toLowerCase().includes("parcialidades");
+
+  // Fallback: días desde la fecha límite del contrato
+  function diasDesdeFechaLimite(){
+    if(!c.fechaLimite) return 0;
+    const venc = new Date(c.fechaLimite + "T12:00:00"); venc.setHours(0,0,0,0);
+    const d = Math.round((hoy - venc) / (1000*60*60*24));
+    return d > 0 ? d : 0;
+  }
+
+  if(!esParcialidades) return diasDesdeFechaLimite();
+
+  const parcialidades = Number(c.parcialidades) || 30;
+  if(parcialidades <= 0) return diasDesdeFechaLimite();
+
+  // Fecha del contrato: c.fecha o, si no existe, retroceder 2 meses desde fechaLimite
+  let fechaContratoISO = c.fecha;
+  if(!fechaContratoISO && c.fechaLimite){
+    const d = new Date(c.fechaLimite + "T12:00:00");
+    d.setMonth(d.getMonth() - 2);
+    fechaContratoISO = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+  }
+  if(!fechaContratoISO) return diasDesdeFechaLimite();
+
+  const fechaContrato = new Date(fechaContratoISO + "T12:00:00"); fechaContrato.setHours(0,0,0,0);
+  const diasDesdeContrato = Math.floor((hoy - fechaContrato) / (1000*60*60*24));
+  if(diasDesdeContrato <= 0) return 0;
+
+  const ciclosCompletos = Math.floor(diasDesdeContrato / parcialidades);
+  if(ciclosCompletos <= 0) return diasDesdeFechaLimite();
+
+  const fechaUltimaParcialidad = new Date(fechaContrato);
+  fechaUltimaParcialidad.setDate(fechaUltimaParcialidad.getDate() + ciclosCompletos * parcialidades);
+
+  const diasDesdeParcialidad = Math.round((hoy - fechaUltimaParcialidad) / (1000*60*60*24));
+  return diasDesdeParcialidad > 0 ? diasDesdeParcialidad : 0;
+}
+
+
 async function waCalcularPendientes(){
   const pendientes = [];
   const dias = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b);
@@ -8103,7 +8147,7 @@ async function waCalcularPendientes(){
 
     if(hitoPendiente !== undefined){
       // Camino normal: le queda algún hito por avisar
-      pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:hitoPendiente, esMorosa:false });
+            pendientes.push({ cliente:c, diasRestantes:dr, diasVencidoEfectivo:waDiasVencidoEfectivo(c), saldo, fechaRef, hito:hitoPendiente, esMorosa:false });
       return;
     }
 
@@ -8118,7 +8162,7 @@ async function waCalcularPendientes(){
       const diasDesde = Math.round(ms / (1000*60*60*24));
       if(diasDesde < diasMorosa) return; // todavía no toca re-avisar
     }
-    pendientes.push({ cliente:c, diasRestantes:dr, saldo, fechaRef, hito:"morosa", esMorosa:true });
+        pendientes.push({ cliente:c, diasRestantes:dr, diasVencidoEfectivo:waDiasVencidoEfectivo(c), saldo, fechaRef, hito:"morosa", esMorosa:true });
   });
   return pendientes;
 }
@@ -8213,10 +8257,12 @@ async function waMarcarComoEnviado(clienteId, clienteNombre, hito){
   if(hito === "morosa"){
     await waSetBanderaMorosa(clienteId, clienteNombre);
     await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, re-aviso morosa)`);
+    toast("📲 Enviado: re-aviso morosa");
   } else {
     const hitoNum = Number(hito);
     await waSetBanderaHito(clienteId, clienteNombre, hitoNum, true);
     await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, aviso ${hitoNum}d)`);
+    toast("📲 Enviado: aviso de " + hitoNum + " día" + (hitoNum===1?"":"s"));
   }
 
   // 3) Refrescar SOLO el badge rojo del nav.
@@ -8232,12 +8278,16 @@ async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, hito){
     if(checkbox.checked){
       await waSetBanderaMorosa(clienteId, clienteNombre);
       await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, re-aviso morosa)`);
+      toast("✓ Marcado: re-aviso morosa");
     }
     // Si desmarca, no borramos la bandera morosa: la fecha del último re-aviso se conserva.
   } else {
     const hitoNum = Number(hito);
     await waSetBanderaHito(clienteId, clienteNombre, hitoNum, checkbox.checked);
-    if(checkbox.checked) await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hitoNum}d)`);
+    if(checkbox.checked){
+      await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hitoNum}d)`);
+      toast("✓ Marcado: aviso de " + hitoNum + " día" + (hitoNum===1?"":"s"));
+    }
   }
   waMostrarRecordatorios();
   waRefrescarBadge(false);
@@ -8264,10 +8314,11 @@ async function waRefrescarBadge(mostrarAviso){
 function waMostrarAvisoLogin(pendientes){
   const esAdmin = currentUser && currentUser.role==="admin";
   document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>{
+    const dv = p.diasVencidoEfectivo || 0;
     const estadoTexto = p.esMorosa
-      ? `Vencida hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+      ? `Vencida hace ${dv} día${dv===1?"":"s"}`
       : (p.diasRestantes < 0
-          ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+          ? `Venció hace ${dv} día${dv===1?"":"s"}`
           : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`);
     const tipoAviso = p.esMorosa ? "re-aviso morosa" : `aviso ${p.hito}d`;
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
@@ -8323,10 +8374,11 @@ async function waMostrarRecordatorios(){
     const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
     const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
     const vencido     = p.diasRestantes < 0;
+    const dv          = p.diasVencidoEfectivo || 0;
     const etiqueta    = p.esMorosa
-      ? `Vencida hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"} · re-aviso morosa`
+      ? `Vencida hace ${dv} día${dv===1?"":"s"} · re-aviso morosa`
       : (vencido
-          ? `Venció hace ${Math.abs(p.diasRestantes)} día${Math.abs(p.diasRestantes)===1?"":"s"}`
+          ? `Venció hace ${dv} día${dv===1?"":"s"}`
           : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`)
         + ` · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
 
