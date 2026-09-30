@@ -567,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.2 · vencimientoIncongruente</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.3 · parcialidadesReales</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -669,6 +669,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <button class="nav-btn" id="nb-mensajeria" onclick="toggleNav('mensajeria')">📲 Mensajería <span id="wa-badge-count" class="wa-badge"></span> <span class="arrow">▾</span></button>
       <div class="subnav" id="sub-mensajeria">
         <button class="sub-item" onclick="goSec('mensajeria-recordatorios')" id="admin-sub-wa-rec">📋 Recordatorios</button>
+        <button class="sub-item" onclick="goSec('mensajeria-morosas')" id="admin-sub-wa-mor">⚠️ Morosas <span id="wa-badge-morosas" class="wa-badge" style="display:none"></span></button>
         <button class="sub-item" onclick="goSec('mensajeria-historial')" id="admin-sub-wa-hist">📜 Historial envíos</button>
         <button class="sub-item" onclick="goSec('mensajeria-config')" id="admin-sub-wa-cfg">⚙️ Configuración WA</button>
       </div>
@@ -1509,6 +1510,15 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
       <div class="card">
         <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.8rem">Clientes con recordatorio pendiente hoy</div>
         <div id="wa-recordatorios-lista"><span class="spinner"></span> Calculando...</div>
+      </div>
+    </div>
+
+    <!-- ── MENSAJERÍA: MOROSAS ── -->
+    <div class="section" id="sec-mensajeria-morosas">
+      <div class="sec-title">Clientas Morosas</div>
+      <div class="card">
+        <div style="font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d);margin-bottom:.8rem">Clientas con peldaños vencidos sin pago</div>
+        <div id="wa-morosas-lista"><span class="spinner"></span> Calculando...</div>
       </div>
     </div>
 
@@ -2395,6 +2405,7 @@ function goSec(id){
   if(id==="lista-clientes"){renderClientes();}
   if(id==="nuevo-cliente"){limpiarFormularioCliente();}
   if(id==="mensajeria-recordatorios"){waMostrarRecordatorios();waRefrescarBadge(false);}
+  if(id==="mensajeria-morosas"){waMostrarMorosas();waRefrescarBadge(false);}
   if(id==="mensajeria-historial"){waLoadHistorial();}
   if(id==="mensajeria-config"){waCargarConfigUI();}
 }
@@ -7969,7 +7980,8 @@ async function waEnviarAutomatico(){
     if(!numero) continue;
     const numeroFinal = numero.startsWith("52") ? numero : "52"+numero;
     const monto      = "$" + p.saldo.toLocaleString("es-MX");
-    const fechaTexto = waFormatearFecha(p.fechaRef);
+    const fechaISO   = p.estado === "morosa" ? p.peldañoVencido : p.peldañoProximo;
+    const fechaTexto = waFormatearFecha(fechaISO);
     const mensaje    = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
     try{
       const url  = `https://graph.facebook.com/v19.0/${_waConfig.phoneNumberId}/messages`;
@@ -7981,16 +7993,14 @@ async function waEnviarAutomatico(){
       });
       const j = await r.json();
       if(r.ok){
-        // Marca el hito específico (7 días, 1 día, etc.) como avisado — o el re-aviso moroso
-        if(p.esMorosa){
-          await waSetBanderaMorosa(clienteId, p.cliente.nombre);
+        if(p.estado === "morosa"){
+          await waSetBanderaMorosa(clienteId, p.cliente.nombre, p.peldañoVencido);
         } else {
-          await waSetBanderaHito(clienteId, p.cliente.nombre, p.hito, true);
+          await waSetBanderaHito(clienteId, p.cliente.nombre, p.peldañoProximo, p.hito, true);
         }
         await waRegistrarEnvio(p.cliente.id, p.cliente.nombre, numeroFinal, mensaje, "enviado");
       }
     }catch(e){ console.warn("waEnviarAutomatico error:", p.cliente.nombre, e); }
-    // Pausa entre envíos para no saturar la API
     await new Promise(r=>setTimeout(r,600));
   }
 }
@@ -8053,10 +8063,89 @@ function waFormatearFecha(fechaISO){
   return d.toLocaleDateString("es-MX",{day:"numeric",month:"long",year:"numeric"});
 }
 
+// ══ v60.3 — Sistema de peldaños de parcialidades ══
+function isoDeFecha(d){
+  return d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+}
+
+function waCalcularPeldaños(c){
+  if(!c || !c.fecha) return [];
+  const N = Number(c.parcialidades) || 30;
+  if(N <= 0) return [];
+  const inicio = new Date(c.fecha + "T12:00:00");
+  if(!isFinite(inicio.getTime())) return [];
+  const finMs = c.fechaLimite ? new Date(c.fechaLimite + "T12:00:00").getTime() : null;
+  const peldaños = [];
+  let d = new Date(inicio);
+  d.setDate(d.getDate() + N);
+  for(let i = 0; i < 60; i++){
+    if(finMs !== null && d.getTime() >= finMs) break;
+    peldaños.push(isoDeFecha(d));
+    d.setDate(d.getDate() + N);
+  }
+  if(c.fechaLimite && !peldaños.includes(c.fechaLimite)) peldaños.push(c.fechaLimite);
+  return peldaños;
+}
+
+function waHayAbonoDespues(c, desdeISO){
+  const desdeMs = new Date(desdeISO + "T12:00:00").getTime();
+  const fechaAnt = c.fechaAnticipo || c.fecha;
+  if(fechaAnt && Number(c.anticipo||0) > 0){
+    if(new Date(fechaAnt + "T12:00:00").getTime() > desdeMs) return true;
+  }
+  for(const p of (c.pagos||[])){
+    if(!p.fecha) continue;
+    if(Number(p.monto||0) <= 0) continue;
+    if(new Date(p.fecha + "T12:00:00").getTime() > desdeMs) return true;
+  }
+  return false;
+}
+
+function waEstadoCliente(c){
+  if(!c.fecha) return { tipo: "fuera", motivo: "sin_fecha" };
+  if((c.sispago||"") === "Liquidado") return { tipo: "fuera", motivo: "liquidado" };
+
+  const precio  = Number(c.precio||0);
+  const paquete = Number(c.precioPaquete||0);
+  const extras  = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
+  const total   = precio + paquete + extras;
+  const pagado  = Number(c.anticipo||0) + (c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
+  const interes = c.interes === "si" ? total * 0.1 : 0;
+  const saldo   = (total - pagado) + interes;
+  if(saldo <= 0) return { tipo:"fuera", motivo:"liquidada", saldo, total, pagado };
+
+  const peldaños = waCalcularPeldaños(c);
+  if(!peldaños.length) return { tipo:"fuera", motivo:"sin_peldaños", saldo, total, pagado };
+
+  const hoy = fechaLocalISO();
+  const vencidos = peldaños.filter(p => p < hoy);
+  const prox     = peldaños.find(p => p >= hoy);
+
+  if(vencidos.length){
+    const ultimo = vencidos[vencidos.length - 1];
+    const idx = peldaños.indexOf(ultimo);
+    const inicio = idx === 0 ? c.fecha : peldaños[idx - 1];
+    if(!waHayAbonoDespues(c, inicio)){
+      return { tipo:"morosa", saldo, total, pagado, peldañoVencido: ultimo };
+    }
+  }
+
+  if(c.fechaLimite && hoy > c.fechaLimite){
+    return { tipo:"morosa", saldo, total, pagado, peldañoVencido: c.fechaLimite };
+  }
+
+  if(!prox) return { tipo:"al_corriente", saldo, total, pagado };
+  const dr = waDiasRestantes(prox);
+  const hitos = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b);
+  const cruzados = hitos.filter(h => dr <= h);
+  if(!cruzados.length) return { tipo:"al_corriente", saldo, total, pagado, peldañoProximo: prox };
+  return { tipo:"proxima", saldo, total, pagado, peldañoProximo: prox, diasRestantes: dr, hitosCruzados: cruzados };
+}
+
 // Genera el mensaje exacto que pidió Kateryn
 function waGenerarMensaje(nombre, monto, fechaTexto){
   const soporte = _waConfig.numeroSoporte || "529212550819";
-  return `Hola ${nombre} 👋\nEsperamos que te encuentres muy bien. Te recordamos que tienes un pago pendiente de ${monto}, con fecha límite el ${fechaTexto}.\nTe agradeceríamos mucho realizar tu pago antes de la fecha indicada para mantener tu cuenta al corriente y evitar cargos adicionales.\nSi tienes alguna duda o necesitas apoyo, estamos para ayudarte: https://wa.me/${soporte}\n🌙 Ross de Lune.`;
+  return `Hola ${nombre}  \nEsperamos que te encuentres muy bien. Te recordamos que tienes un saldo pendiente de ${monto}, correspondiente al pago del ${fechaTexto}.\nTe agradeceríamos mucho realizar tu pago antes de la fecha indicada para mantener tu cuenta al corriente y evitar cargos adicionales.\nSi tienes alguna duda o necesitas apoyo, estamos para ayudarte: https://wa.me/${soporte}\n  Ross de Lune.`;
 }
 
 // Calcula qué clientes tienen un hito de aviso CRUZADO (faltan <= X días, incluye vencidos)
@@ -8071,100 +8160,58 @@ function waGenerarMensaje(nombre, monto, fechaTexto){
 // Calcula cuántos días han pasado desde la última parcialidad que le tocaba
 // pagar a la clienta. Si no tiene parcialidades configuradas, cae al cálculo
 // tradicional (días desde la fecha límite del contrato). Nunca devuelve negativo.
-function waDiasVencidoEfectivo(c){
-  const hoy = new Date(); hoy.setHours(0,0,0,0);
-  const esParcialidades = (c.sispago || "").toLowerCase().includes("parcialidades");
 
-  // Fallback: días desde la fecha límite del contrato
-  function diasDesdeFechaLimite(){
-    if(!c.fechaLimite) return 0;
-    const venc = new Date(c.fechaLimite + "T12:00:00"); venc.setHours(0,0,0,0);
-    const d = Math.round((hoy - venc) / (1000*60*60*24));
-    return d > 0 ? d : 0;
-  }
-
-  if(!esParcialidades) return diasDesdeFechaLimite();
-
-  const parcialidades = Number(c.parcialidades) || 30;
-  if(parcialidades <= 0) return diasDesdeFechaLimite();
-
-  // Fecha del contrato: c.fecha o, si no existe, retroceder 2 meses desde fechaLimite
-  let fechaContratoISO = c.fecha;
-  if(!fechaContratoISO && c.fechaLimite){
-    const d = new Date(c.fechaLimite + "T12:00:00");
-    d.setMonth(d.getMonth() - 2);
-    fechaContratoISO = d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
-  }
-  if(!fechaContratoISO) return diasDesdeFechaLimite();
-
-  const fechaContrato = new Date(fechaContratoISO + "T12:00:00"); fechaContrato.setHours(0,0,0,0);
-  const diasDesdeContrato = Math.floor((hoy - fechaContrato) / (1000*60*60*24));
-  if(diasDesdeContrato <= 0) return 0;
-
-  const ciclosCompletos = Math.floor(diasDesdeContrato / parcialidades);
-  if(ciclosCompletos <= 0) return diasDesdeFechaLimite();
-
-  const fechaUltimaParcialidad = new Date(fechaContrato);
-  fechaUltimaParcialidad.setDate(fechaUltimaParcialidad.getDate() + ciclosCompletos * parcialidades);
-
-  const diasDesdeParcialidad = Math.round((hoy - fechaUltimaParcialidad) / (1000*60*60*24));
-  return diasDesdeParcialidad > 0 ? diasDesdeParcialidad : 0;
-}
-
-
+// Devuelve array de objetos, cada uno con:
+//   { cliente, estado:"proxima", saldo, peldañoProximo, diasRestantes, hito }
+//   { cliente, estado:"morosa",  saldo, peldañoVencido }
+// Los consumidores filtran por estado según lo que necesiten pintar.
 async function waCalcularPendientes(){
-  const pendientes = [];
-  const dias = (_waConfig.dias || [15,7,3,1]).slice().sort((a,b)=>a-b);
-  const diasMorosa = Number(_waConfig.diasMorosa) || 0;
-  const [banderasPorCliente, banderasMorosas] = await Promise.all([
+  const resultados = [];
+  const [banderasHitos, banderasMorosas] = await Promise.all([
     waObtenerBanderasHitos(),
     waObtenerBanderasMorosas()
   ]);
-  const hoyISO = fechaLocalISO();
+  const diasMorosa = Number(_waConfig.diasMorosa) || 0;
+  const hoy = fechaLocalISO();
 
-  (allClientes||[]).forEach(c=>{
-    if(c.estatus === "Entregado") return;
-    // ── Misma fórmula que renderPagosPendientes (Pagos → Pendientes) ──
-    const precio   = Number(c.precio||0);
-    const paquete  = Number(c.precioPaquete||0);
-    const extras   = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-    const total    = precio + paquete + extras;
-    const pagado   = Number(c.anticipo||0) + (c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
-    const interes  = c.interes==="si" ? total*0.1 : 0;
-    const saldo    = (total - pagado) + interes;
-    if(saldo <= 0) return;
-    // ──────────────────────────────────────────────────────────────────
+  (allClientes||[]).forEach(c => {
+    const est = waEstadoCliente(c);
+    if(est.tipo === "fuera") return;
+
     const clienteId = c.id || c.folio;
     if(!clienteId) return;
-    const fechaRef = c.fechaLimite || c.entrega;
-    const dr = waDiasRestantes(fechaRef);
-    if(dr === null) return;
 
-    const marcados = banderasPorCliente[clienteId] || new Set();
-    const cruzados = dias.filter(h => dr <= h);
-    if(!cruzados.length) return;
-    const hitoPendiente = cruzados.find(h => !marcados.has(h));
-
-    if(hitoPendiente !== undefined){
-      // Camino normal: le queda algún hito por avisar
-            pendientes.push({ cliente:c, diasRestantes:dr, diasVencidoEfectivo:waDiasVencidoEfectivo(c), saldo, fechaRef, hito:hitoPendiente, esMorosa:false });
+    if(est.tipo === "morosa"){
+      // ¿Toca re-avisar?
+      const porPeldaño = banderasMorosas[clienteId] || {};
+      const ultimoAviso = porPeldaño[est.peldañoVencido];
+      if(ultimoAviso){
+        if(diasMorosa <= 0) return;
+        const ms = new Date(hoy+"T12:00:00") - new Date(ultimoAviso+"T12:00:00");
+        const diasDesde = Math.round(ms / (1000*60*60*24));
+        if(diasDesde < diasMorosa) return;
+      }
+      resultados.push({
+        cliente: c, estado: "morosa", saldo: est.saldo,
+        peldañoVencido: est.peldañoVencido
+      });
       return;
     }
 
-    // ── Camino morosa (v60.1) ──
-    // Ya se le avisaron todos los hitos de waConfig.dias[]. Si sigue debiendo
-    // y ya venció su fecha límite, se le sigue recordando cada diasMorosa días.
-    if(diasMorosa <= 0) return;   // config no lo pide
-    if(dr >= 0) return;           // solo cuando ya pasó la fecha límite
-    const fechaUltimoAviso = banderasMorosas[clienteId] || null;
-    if(fechaUltimoAviso){
-      const ms = new Date(hoyISO+"T12:00:00") - new Date(fechaUltimoAviso+"T12:00:00");
-      const diasDesde = Math.round(ms / (1000*60*60*24));
-      if(diasDesde < diasMorosa) return; // todavía no toca re-avisar
+    if(est.tipo === "proxima"){
+      const porPeldaño = banderasHitos[clienteId] || {};
+      const marcados = porPeldaño[est.peldañoProximo] || new Set();
+      const hitoPendiente = est.hitosCruzados.find(h => !marcados.has(h));
+      if(hitoPendiente === undefined) return;
+      resultados.push({
+        cliente: c, estado: "proxima", saldo: est.saldo,
+        peldañoProximo: est.peldañoProximo,
+        diasRestantes: est.diasRestantes,
+        hito: hitoPendiente
+      });
     }
-        pendientes.push({ cliente:c, diasRestantes:dr, diasVencidoEfectivo:waDiasVencidoEfectivo(c), saldo, fechaRef, hito:"morosa", esMorosa:true });
   });
-  return pendientes;
+  return resultados;
 }
 
 // Devuelve la fecha/hora actual en formato legible (solo para guardar cuándo se marcó, no para comparar)
@@ -8180,9 +8227,11 @@ async function waObtenerBanderasHitos(){
     const snap = await db.collection("waBanderas").where("tipoBandera","==","hito").get();
     snap.forEach(doc=>{
       const d = doc.data();
-      if(!d.clienteId || d.hito===undefined) return;
-      if(!map[d.clienteId]) map[d.clienteId] = new Set();
-      map[d.clienteId].add(d.hito);
+      if(!d.clienteId || d.hito === undefined) return;
+      const peldaño = d.peldaño || "sin_peldaño";
+      if(!map[d.clienteId]) map[d.clienteId] = {};
+      if(!map[d.clienteId][peldaño]) map[d.clienteId][peldaño] = new Set();
+      map[d.clienteId][peldaño].add(d.hito);
     });
   }catch(e){ console.warn("waObtenerBanderasHitos:", e); }
   return map;
@@ -8190,13 +8239,15 @@ async function waObtenerBanderasHitos(){
 
 // Marca o desmarca el hito de un cliente como avisado (ej. "ya se avisó el de 7 días a Laura").
 // El ID del documento NO lleva fecha — por eso el aviso nunca se pierde si no entras el día exacto.
-async function waSetBanderaHito(clienteId, clienteNombre, hito, marcar){
+async function waSetBanderaHito(clienteId, clienteNombre, peldañoISO, hito, marcar){
   const hitoNum = Number(hito);
-  const docId = clienteId + "_h" + hitoNum;
+  const compacto = peldañoISO.replace(/-/g,"");
+  const docId = clienteId + "_p" + compacto + "_h" + hitoNum;
   try{
     if(marcar){
       await db.collection("waBanderas").doc(docId).set({
-        clienteId, clienteNombre, hito: hitoNum, tipoBandera:"hito", marcadoEl:waFechaHoy()
+        clienteId, clienteNombre, peldaño: peldañoISO, hito: hitoNum,
+        tipoBandera:"hito", marcadoEl:waFechaHoy()
       });
     } else {
       await db.collection("waBanderas").doc(docId).delete();
@@ -8215,18 +8266,20 @@ async function waObtenerBanderasMorosas(){
     snap.forEach(doc=>{
       const d = doc.data();
       if(!d.clienteId || !d.fechaISO) return;
-      map[d.clienteId] = d.fechaISO;
+      const peldaño = d.peldaño || "sin_peldaño";
+      if(!map[d.clienteId]) map[d.clienteId] = {};
+      map[d.clienteId][peldaño] = d.fechaISO;
     });
   }catch(e){ console.warn("waObtenerBanderasMorosas:", e); }
   return map;
 }
-async function waSetBanderaMorosa(clienteId, clienteNombre){
-  const docId = clienteId + "_morosa";
+async function waSetBanderaMorosa(clienteId, clienteNombre, peldañoISO){
+  const compacto = (peldañoISO||fechaLocalISO()).replace(/-/g,"");
+  const docId = clienteId + "_p" + compacto + "_morosa";
   try{
     await db.collection("waBanderas").doc(docId).set({
-      clienteId, clienteNombre, tipoBandera:"morosa",
-      fechaISO: fechaLocalISO(),
-      marcadoEl: waFechaHoy()
+      clienteId, clienteNombre, peldaño: peldañoISO||null,
+      tipoBandera:"morosa", fechaISO: fechaLocalISO(), marcadoEl: waFechaHoy()
     });
   }catch(e){ console.warn("waSetBanderaMorosa:", e); }
 }
@@ -8248,42 +8301,34 @@ async function waBorrarBanderasHitosCliente(clienteId){
 }
 
 // Clic en "📲 Enviar por WhatsApp" — abre el wa.me y marca ese hito específico como avisado
-async function waMarcarComoEnviado(clienteId, clienteNombre, hito){
-  // 1) Marcar el checkbox visualmente en la fila (si existe en el DOM)
+async function waMarcarComoEnviado(clienteId, clienteNombre, peldañoISO, hito){
   const chk = document.getElementById(`chk-env-${clienteId}-${hito}`);
   if(chk){ chk.checked = true; chk.disabled = true; }
 
-  // 2) Guardar la bandera en Firestore
   if(hito === "morosa"){
-    await waSetBanderaMorosa(clienteId, clienteNombre);
-    await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, re-aviso morosa)`);
-    toast("📲 Enviado: re-aviso morosa");
+    await waSetBanderaMorosa(clienteId, clienteNombre, peldañoISO);
+    await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, morosa)`);
+    toast("📲 Enviado: morosa");
   } else {
     const hitoNum = Number(hito);
-    await waSetBanderaHito(clienteId, clienteNombre, hitoNum, true);
+    await waSetBanderaHito(clienteId, clienteNombre, peldañoISO, hitoNum, true);
     await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (wa.me manual, aviso ${hitoNum}d)`);
     toast("📲 Enviado: aviso de " + hitoNum + " día" + (hitoNum===1?"":"s"));
   }
-
-  // 3) Refrescar SOLO el badge rojo del nav.
-  //    NO redibujamos la lista: la fila queda visible con el check marcado
-  //    hasta que el usuario recargue manualmente la página.
   waRefrescarBadge(false);
 }
 
-// Checkbox "✓ Marcar como enviado" — mismo efecto que el link, sin abrir WhatsApp
-async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, hito){
+async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, peldañoISO, hito){
   checkbox.disabled = true;
   if(hito === "morosa"){
     if(checkbox.checked){
-      await waSetBanderaMorosa(clienteId, clienteNombre);
-      await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, re-aviso morosa)`);
-      toast("✓ Marcado: re-aviso morosa");
+      await waSetBanderaMorosa(clienteId, clienteNombre, peldañoISO);
+      await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, morosa)`);
+      toast("✓ Marcado: morosa");
     }
-    // Si desmarca, no borramos la bandera morosa: la fecha del último re-aviso se conserva.
   } else {
     const hitoNum = Number(hito);
-    await waSetBanderaHito(clienteId, clienteNombre, hitoNum, checkbox.checked);
+    await waSetBanderaHito(clienteId, clienteNombre, peldañoISO, hitoNum, checkbox.checked);
     if(checkbox.checked){
       await waRegistrarEnvio(clienteId, clienteNombre, "", "", `enviado (marcado manual, aviso ${hitoNum}d)`);
       toast("✓ Marcado: aviso de " + hitoNum + " día" + (hitoNum===1?"":"s"));
@@ -8295,43 +8340,72 @@ async function waToggleMarcarEnviado(checkbox, clienteId, clienteNombre, hito){
 
 // Recalcula el badge rojo del nav y, si se pide, muestra el aviso post-login
 async function waRefrescarBadge(mostrarAviso){
-  const pendientesReales = await waCalcularPendientes();
-  window._waPendientesHoy = pendientesReales;
-
+  const todos = await waCalcularPendientes();
+  window._waPendientesHoy = todos;
+  const morosas = todos.filter(p => p.estado === "morosa");
   const badge = document.getElementById("wa-badge-count");
   if(badge){
-    if(pendientesReales.length){
-      badge.textContent = pendientesReales.length>99 ? "99+" : pendientesReales.length;
+    if(morosas.length){
+      badge.textContent = morosas.length>99 ? "99+" : morosas.length;
       badge.style.display = "inline-flex";
     } else {
       badge.style.display = "none";
     }
   }
-  if(mostrarAviso && pendientesReales.length) waMostrarAvisoLogin(pendientesReales);
+  if(mostrarAviso && todos.length) waMostrarAvisoLogin(todos);
 }
 
+// Texto del estado de vencimiento — compartido por los dos consumidores que
+// pintan la etiqueta (lista de Recordatorios y modal post-login). Antes estaba
+// duplicado en ambos sitios, y ninguno cubría el caso diasRestantes===0
+// (fecha límite hoy), que caía en "Faltan 0 días".
+function waTextoVencimiento(p){
+  const dv = p.diasVencidoEfectivo || 0;
+  if(p.esMorosa)             return `Vencida hace ${dv} día${dv===1?"":"s"}`;
+  if(p.diasRestantes === 0)  return "Vence hoy";
+  if(p.diasRestantes  <  0)  return `Venció hace ${dv} día${dv===1?"":"s"}`;
+  return `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`;
+}
 // Muestra el modal de aviso justo después de iniciar sesión
 function waMostrarAvisoLogin(pendientes){
   const esAdmin = currentUser && currentUser.role==="admin";
-  document.getElementById("wa-aviso-lista").innerHTML = pendientes.map(p=>{
-    const dv = p.diasVencidoEfectivo || 0;
-    const estadoTexto = p.esMorosa
-      ? `Vencida hace ${dv} día${dv===1?"":"s"}`
-      : (p.diasRestantes < 0
-          ? `Venció hace ${dv} día${dv===1?"":"s"}`
-          : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`);
-    const tipoAviso = p.esMorosa ? "re-aviso morosa" : `aviso ${p.hito}d`;
+  const proximas = pendientes.filter(p => p.estado === "proxima");
+  const morosas  = pendientes.filter(p => p.estado === "morosa");
+
+  const fila = (p) => {
+    if(p.estado === "proxima"){
+      const dr = p.diasRestantes;
+      const txtDr = dr===0 ? "Vence hoy" : `Faltan ${dr} día${dr===1?"":"s"}`;
+      return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
+        <span>${p.cliente.nombre||"—"} <span style="color:#888;font-size:.72rem">Folio ${p.cliente.folio||"—"}</span></span>
+        <span style="color:var(--dorado-d);font-size:.72rem">${txtDr} · aviso ${p.hito}d</span>
+      </div>`;
+    }
     return `<div style="display:flex;justify-content:space-between;align-items:center;padding:.4rem 0;border-bottom:1px solid var(--borde);font-size:.82rem">
       <span>${p.cliente.nombre||"—"} <span style="color:#888;font-size:.72rem">Folio ${p.cliente.folio||"—"}</span></span>
-      <span style="color:var(--dorado-d);font-size:.72rem">${estadoTexto} · ${tipoAviso}</span>
+      <span style="color:var(--rojo);font-size:.72rem">Debe el pago del ${waFormatearFecha(p.peldañoVencido)}</span>
     </div>`;
-  }).join("");
+  };
+
+  const seccion = (titulo, lista, color) => lista.length
+    ? `<div style="font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;color:${color};margin:.6rem 0 .3rem">${titulo}</div>${lista.map(fila).join("")}`
+    : "";
+
+  document.getElementById("wa-aviso-lista").innerHTML =
+    seccion("Próximas a vencer", proximas, "var(--dorado-d)")
+    + seccion("Morosas", morosas, "var(--rojo)");
+
+  const partes = [];
+  if(proximas.length) partes.push(`${proximas.length} próxima${proximas.length===1?"":"s"}`);
+  if(morosas.length)  partes.push(`${morosas.length} morosa${morosas.length===1?"":"s"}`);
   document.getElementById("wa-aviso-titulo").textContent =
-    `📲 Tienes ${pendientes.length} recordatorio${pendientes.length===1?"":"s"} de pago pendiente${pendientes.length===1?"":"s"} hoy`;
+    "Recordatorios de pago — " + partes.join(" · ");
+
   document.getElementById("wa-aviso-btn").style.display = esAdmin ? "" : "none";
   document.getElementById("wa-aviso-nota-worker").style.display = esAdmin ? "none" : "";
   document.getElementById("modal-wa-aviso").classList.add("open");
 }
+
 function closeAvisoWa(){
   document.getElementById("modal-wa-aviso").classList.remove("open");
 }
@@ -8356,7 +8430,8 @@ async function waMostrarRecordatorios(){
     : '<span style="color:var(--dorado-d)">🔶 Modo manual — envía los recordatorios con el enlace de WhatsApp</span>';
 
   lista.innerHTML = '<span class="spinner"></span> Calculando recordatorios...';
-  const pendientes = await waCalcularPendientes();
+  const todos = await waCalcularPendientes();
+  const pendientes = todos.filter(p => p.estado === "proxima");
 
   if(!pendientes.length){
     lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">No hay recordatorios pendientes por enviar.</p>';
@@ -8366,31 +8441,26 @@ async function waMostrarRecordatorios(){
   lista.innerHTML = pendientes.map(p=>{
     const clienteId  = p.cliente.id || p.cliente.folio || "";
     const monto      = "$" + p.saldo.toLocaleString("es-MX");
-    const fechaTexto = waFormatearFecha(p.fechaRef);
+    const fechaTexto = waFormatearFecha(p.peldañoProximo);
     const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
     const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
     const numeroFinal= numero ? (numero.startsWith("52")?numero:"52"+numero) : "";
     const numDisplay = numero ? numero : '<span style="color:var(--rojo)">Sin número registrado</span>';
     const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
     const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
-    const vencido     = p.diasRestantes < 0;
-    const dv          = p.diasVencidoEfectivo || 0;
-    const etiqueta    = p.esMorosa
-      ? `Vencida hace ${dv} día${dv===1?"":"s"} · re-aviso morosa`
-      : (vencido
-          ? `Venció hace ${dv} día${dv===1?"":"s"}`
-          : `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`)
-        + ` · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
+    const dr         = p.diasRestantes;
+    const txtDr      = dr===0 ? "Vence hoy" : `Faltan ${dr} día${dr===1?"":"s"}`;
+    const etiqueta   = `${txtDr} · pendiente aviso de ${p.hito} día${p.hito===1?"":"s"}`;
 
     const accionesAdmin = esAdmin ? `
       <div style="display:flex;align-items:center;gap:.9rem;margin-top:.6rem;flex-wrap:wrap">
         ${linkWa
-          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}','${p.hito}')">📲 Enviar por WhatsApp</a>`
+          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}','${p.peldañoProximo}','${p.hito}')">📲 Enviar por WhatsApp</a>`
           : '<span style="font-size:.72rem;color:var(--rojo)">Sin número — no se puede generar el enlace</span>'}
         <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#666;cursor:pointer">
-  <input type="checkbox" id="chk-env-${clienteId}-${p.hito}" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}','${p.hito}')">
-  ✓ Marcar como enviado
-</label>
+          <input type="checkbox" id="chk-env-${clienteId}-${p.hito}" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}','${p.peldañoProximo}','${p.hito}')">
+          ✓ Marcar como enviado
+        </label>
       </div>` : "";
 
     return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
@@ -8399,7 +8469,68 @@ async function waMostrarRecordatorios(){
           <strong style="font-size:.9rem">${p.cliente.nombre||"—"}</strong>
           <span style="font-size:.72rem;color:#888;margin-left:.5rem">Folio ${p.cliente.folio||"—"}</span>
         </div>
-        <span style="font-size:.7rem;background:${vencido?"#FBEAEA":"#E8F8EE"};color:${vencido?"var(--rojo)":"var(--verde)"};border-radius:20px;padding:.18rem .7rem">${etiqueta}</span>
+        <span style="font-size:.7rem;background:#E8F8EE;color:var(--verde);border-radius:20px;padding:.18rem .7rem">${etiqueta}</span>
+      </div>
+      <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
+      <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6">${msgTexto}</div>
+      ${accionesAdmin}
+    </div>`;
+  }).join("");
+}
+
+async function waMostrarMorosas(){
+  const lista = document.getElementById("wa-morosas-lista");
+  const esAdmin = currentUser && currentUser.role==="admin";
+
+  lista.innerHTML = '<span class="spinner"></span> Calculando...';
+  const todos = await waCalcularPendientes();
+  const morosas = todos.filter(p => p.estado === "morosa");
+
+  const badgeSub = document.getElementById("wa-badge-morosas");
+  if(badgeSub){
+    if(morosas.length){
+      badgeSub.textContent = morosas.length>99 ? "99+" : morosas.length;
+      badgeSub.style.display = "inline-flex";
+    } else {
+      badgeSub.style.display = "none";
+    }
+  }
+
+  if(!morosas.length){
+    lista.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin clientas morosas.</p>';
+    return;
+  }
+
+  lista.innerHTML = morosas.map(p=>{
+    const clienteId  = p.cliente.id || p.cliente.folio || "";
+    const monto      = "$" + p.saldo.toLocaleString("es-MX");
+    const fechaTexto = waFormatearFecha(p.peldañoVencido);
+    const msgTexto   = waGenerarMensaje(p.cliente.nombre||"clienta", monto, fechaTexto);
+    const numero     = (p.cliente.cel||p.cliente.tel||"").replace(/\D/g,"");
+    const numeroFinal= numero ? (numero.startsWith("52")?numero:"52"+numero) : "";
+    const numDisplay = numero ? numero : '<span style="color:var(--rojo)">Sin número registrado</span>';
+    const linkWa     = numeroFinal ? `https://wa.me/${numeroFinal}?text=${encodeURIComponent(msgTexto)}` : "";
+    const nombreEsc  = (p.cliente.nombre||"").replace(/'/g,"\\'");
+    const etiqueta   = `Debe el pago del ${fechaTexto}`;
+
+    const accionesAdmin = esAdmin ? `
+      <div style="display:flex;align-items:center;gap:.9rem;margin-top:.6rem;flex-wrap:wrap">
+        ${linkWa
+          ? `<a href="${linkWa}" target="_blank" class="btn-sec" style="text-decoration:none;display:inline-block" onclick="waMarcarComoEnviado('${clienteId}','${nombreEsc}','${p.peldañoVencido}','morosa')">📲 Enviar por WhatsApp</a>`
+          : '<span style="font-size:.72rem;color:var(--rojo)">Sin número — no se puede generar el enlace</span>'}
+        <label style="display:flex;align-items:center;gap:.35rem;font-size:.76rem;color:#666;cursor:pointer">
+          <input type="checkbox" id="chk-env-${clienteId}-morosa" onchange="waToggleMarcarEnviado(this,'${clienteId}','${nombreEsc}','${p.peldañoVencido}','morosa')">
+          ✓ Marcar como enviado
+        </label>
+      </div>` : "";
+
+    return `<div style="border:1px solid var(--borde);border-radius:4px;padding:.8rem;margin-bottom:.7rem">
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:.4rem;margin-bottom:.5rem">
+        <div>
+          <strong style="font-size:.9rem">${p.cliente.nombre||"—"}</strong>
+          <span style="font-size:.72rem;color:#888;margin-left:.5rem">Folio ${p.cliente.folio||"—"}</span>
+        </div>
+        <span style="font-size:.7rem;background:#FBEAEA;color:var(--rojo);border-radius:20px;padding:.18rem .7rem">${etiqueta}</span>
       </div>
       <div style="font-size:.75rem;color:#666;margin-bottom:.5rem">📱 ${numDisplay}</div>
       <div style="background:#F9F5EF;border-radius:3px;padding:.55rem .75rem;font-size:.78rem;white-space:pre-line;color:var(--texto);line-height:1.6">${msgTexto}</div>
