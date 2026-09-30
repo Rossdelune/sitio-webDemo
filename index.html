@@ -567,7 +567,7 @@ select.status-badge{border:none;cursor:pointer;appearance:none;-webkit-appearanc
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.3 · parcialidadesReales</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v60.3.1 · parcialidadesAjustes</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -8083,7 +8083,21 @@ function waCalcularPeldaños(c){
     peldaños.push(isoDeFecha(d));
     d.setDate(d.getDate() + N);
   }
-  if(c.fechaLimite && !peldaños.includes(c.fechaLimite)) peldaños.push(c.fechaLimite);
+  // Forzar fechaLimite como último peldaño solo si queda a >= 7 días del
+  // peldaño natural anterior. Si queda pegado (ej. 2 días después), no
+  // aporta un punto de control real — fechaLimite sigue siendo el deadline
+  // final vía la Regla 2 de waEstadoCliente.
+  if(c.fechaLimite && !peldaños.includes(c.fechaLimite)){
+    if(!peldaños.length){
+      peldaños.push(c.fechaLimite);
+    } else {
+      const ultimo = peldaños[peldaños.length - 1];
+      const diffDias = Math.round(
+        (new Date(c.fechaLimite + "T12:00:00") - new Date(ultimo + "T12:00:00")) / (1000*60*60*24)
+      );
+      if(diffDias >= 7) peldaños.push(c.fechaLimite);
+    }
+  }
   return peldaños;
 }
 
@@ -8355,17 +8369,6 @@ async function waRefrescarBadge(mostrarAviso){
   if(mostrarAviso && todos.length) waMostrarAvisoLogin(todos);
 }
 
-// Texto del estado de vencimiento — compartido por los dos consumidores que
-// pintan la etiqueta (lista de Recordatorios y modal post-login). Antes estaba
-// duplicado en ambos sitios, y ninguno cubría el caso diasRestantes===0
-// (fecha límite hoy), que caía en "Faltan 0 días".
-function waTextoVencimiento(p){
-  const dv = p.diasVencidoEfectivo || 0;
-  if(p.esMorosa)             return `Vencida hace ${dv} día${dv===1?"":"s"}`;
-  if(p.diasRestantes === 0)  return "Vence hoy";
-  if(p.diasRestantes  <  0)  return `Venció hace ${dv} día${dv===1?"":"s"}`;
-  return `Faltan ${p.diasRestantes} día${p.diasRestantes===1?"":"s"}`;
-}
 // Muestra el modal de aviso justo después de iniciar sesión
 function waMostrarAvisoLogin(pendientes){
   const esAdmin = currentUser && currentUser.role==="admin";
