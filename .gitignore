@@ -1,8 +1,12 @@
-# 1. Ignorar todos los archivos y carpetas
+# 1. Ignorar todo por defecto
 *
 
-# 2. Excepción: Permitir únicamente el archivo index.html
+# 2. Permitir el propio .gitignore e index.html
+!.gitignore
 !index.html
 
-# 3. Excepción: Permitir el archivo .gitignore
-!.gitignore
+# 3. Archivos de modulación (CSS y JS)
+!css/
+!css/**
+!js/
+!js/**
