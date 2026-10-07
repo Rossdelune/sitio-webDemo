@@ -11,7 +11,7 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const auth = firebase.auth();
 const db = firebase.firestore();
-//if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
+if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){auth.useEmulator("http://localhost:9099");db.settings({host:"localhost:8080",ssl:false});console.log("🔧 Modo emulador activo");}
 
 // Instancia secundaria de Firebase, SOLO para verificar credenciales de un
 // segundo admin (modal de autorización de supervisor) sin cerrar la sesión
@@ -19,6 +19,15 @@ const db = firebase.firestore();
 // instancia principal reemplazaría la sesión activa, por eso se usa una
 // instancia aislada aparte.
 const secondaryApp = firebase.initializeApp(firebaseConfig,"secondary");
+
+// La instancia secundaria debe apuntar también al emulador, para que el
+// alta de colaboradores (saveWorker) cree el usuario en el emulador y no
+// en la nube real. Va después de initializeApp porque necesita que la
+// instancia exista primero.
+if(location.hostname==="localhost"||location.hostname==="127.0.0.1"){
+  secondaryApp.auth().useEmulator("http://localhost:9099");
+  console.log("🔧 Secondary app apuntando al emulador");
+}
 // Colección "users" en Firestore: un documento por persona, ID = nombre de usuario.
 
 // Firebase Authentication exige formato de correo, pero el formulario de

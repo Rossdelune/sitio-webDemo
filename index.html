@@ -27,7 +27,7 @@
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v61.0 · PruebasModulacón</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v62.0 · Colaborador</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -122,6 +122,7 @@
       <div class="subnav" id="sub-cotizaciones">
         <button class="sub-item" onclick="goSec('nueva-cotizacion')">➕ Nueva cotización</button>
         <button class="sub-item" onclick="goSec('cotizaciones-calendario')">📅 Calendario</button>
+        <button class="sub-item" onclick="goSec('cotizaciones-estadisticas')">📊 Estadísticas</button>
       </div>
     </div>
 
@@ -324,6 +325,24 @@
           </div>
           <div class="fi"><label>Anticipo ($)</label><input type="number" id="c-anticipo" placeholder="0" oninput="calcTotal()"></div>
         </div>
+                <div class="fi">
+          <label>Promoción aplicada (opcional)</label>
+          <input type="text" id="c-promocion" placeholder="Ej: 10% por apartado en el mes" oninput="calcTotal()">
+          <div style="margin-top:.5rem">
+            <label style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.25rem">Base del descuento</label>
+            <div style="display:flex;gap:1.2rem;align-items:center;padding:.15rem 0">
+              <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+                <input type="radio" name="c-desc-base" value="vestido" onchange="calcTotal()"> Vestido
+              </label>
+              <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+                <input type="radio" name="c-desc-base" value="paquete" onchange="calcTotal()"> Paquete
+              </label>
+              <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+                <input type="radio" name="c-desc-base" value="ambos" checked onchange="calcTotal()"> Ambos
+              </label>
+            </div>
+          </div>
+        </div>
         <div class="fi"><label>Forma de pago</label>
           <select id="c-fpago" onchange="toggleCuentaAnticipo()">
             <option value="">Seleccionar...</option>
@@ -362,6 +381,10 @@
         <div style="display:flex;justify-content:space-between;font-size:.82rem;margin-bottom:.5rem;">
           <span>Artículos adicionales:</span><strong id="resumen-extras">$0</strong>
         </div>
+                <div id="resumen-descuento-wrap" style="display:none;justify-content:space-between;font-size:.82rem;margin-bottom:.5rem">
+          <span style="color:var(--dorado-d)">Descuento:</span>
+          <strong id="resumen-descuento" style="color:var(--dorado-d)">−$0</strong>
+        </div>
         <div style="display:flex;justify-content:space-between;font-size:.9rem;font-weight:500;border-top:1px solid #E8D8B0;padding-top:.5rem;margin-bottom:.5rem;">
           <span>Total:</span><strong id="resumen-total" style="color:var(--dorado-d)">$0</strong>
         </div>
@@ -374,7 +397,7 @@
       </div>
       <div class="actions-row">
         <button id="btn-guardar-cliente" class="btn-save" onclick="saveCliente()">💾 Guardar cliente</button>
-        <button class="btn-sec"  onclick="goSec('lista-clientes')">Ver lista</button>
+        <button class="btn-sec"  onclick="goSec('lista-clientes')">Cancelar</button>
       </div>
       <div class="msg-err" id="cliente-msg" style="margin-top:.6rem;min-height:1rem;"></div>
     </div>
@@ -1054,6 +1077,14 @@
           <div class="fi"><label>Marca</label><input type="text" id="cq-marca" placeholder="Ej: Morilee, Jovani..."></div>
           <div class="fi"><label>Modelo</label><input type="text" id="cq-modelo" placeholder="Ej: WF2813"></div>
         </div>
+                <div class="fi" style="margin-bottom:.2rem">
+          <label>📷 Escanear artículo del inventario</label>
+          <div style="display:flex;gap:.5rem;align-items:center">
+            <input type="text" id="cq-inv-scan-input" placeholder="Apunta el escáner aquí y escanea el QR..." style="flex:1" onkeydown="if(event.key==='Enter'){cqBuscarPorQR();event.preventDefault();}">
+            <button class="paso-btn" onclick="cqBuscarPorQR()" style="white-space:nowrap">Buscar</button>
+          </div>
+          <div id="cq-inv-scan-msg" style="font-size:.72rem;margin-top:.25rem;min-height:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap"></div>
+        </div>
         <div class="fi"><label>Color</label><input type="text" id="cq-color-name" placeholder="Ej: Azul rey, Sage..."></div>
         <div class="fi"><label>¿Cómo se enteró de nosotros?</label>
           <select id="cq-origen">
@@ -1081,12 +1112,40 @@
         <div class="pkg-components" id="cq-pkg-components"></div>
         <div class="fg2" style="margin-top:.6rem">
           <div class="fi"><label>Precio vestido ($)</label><input type="number" id="cq-precio" placeholder="0" oninput="cqCalcTotal()"></div>
-          <div class="fi"><label>Promoción aplicada (opcional)</label><input type="text" id="cq-promocion" placeholder="Ej: 10% por apartado en el mes"></div>
+          <div class="fi">
+  <label>Promoción aplicada (opcional)</label>
+  <input type="text" id="cq-promocion" placeholder="Ej: 10% por apartado en el mes" oninput="cqCalcTotal()">
+  <div style="margin-top:.5rem">
+    <label style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.25rem">Base del descuento</label>
+    <div style="display:flex;gap:1.2rem;align-items:center;padding:.15rem 0">
+      <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+        <input type="radio" name="cq-desc-base" value="vestido" onchange="cqCalcTotal()"> Vestido
+      </label>
+      <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+        <input type="radio" name="cq-desc-base" value="paquete" onchange="cqCalcTotal()"> Paquete
+      </label>
+      <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+        <input type="radio" name="cq-desc-base" value="ambos" checked onchange="cqCalcTotal()"> Ambos
+      </label>
+    </div>
+  </div>
+</div>
         </div>
-        <div style="margin-top:.6rem;background:var(--crema);border-radius:6px;padding:.7rem 1rem;display:flex;justify-content:space-between;align-items:center">
-          <span style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d)">Total estimado</span>
-          <strong id="cq-resumen-total" style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--dorado-d)">$0</strong>
-        </div>
+        <div style="margin-top:.6rem;background:var(--crema);border-radius:6px;padding:.7rem 1rem">
+  <div id="cq-resumen-descuento-wrap" style="display:none;justify-content:space-between;align-items:center;font-size:.78rem;color:var(--dorado-d);margin-bottom:.35rem">
+    <span>Descuento:</span>
+    <strong id="cq-resumen-descuento">−$0</strong>
+  </div>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <span style="font-size:.68rem;letter-spacing:.1em;text-transform:uppercase;color:var(--dorado-d)">Total estimado</span>
+    <strong id="cq-resumen-total" style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:var(--dorado-d)">$0</strong>
+  </div>
+</div>
+      </div>
+
+      <div class="card" id="card-cq-adicionales">
+        <div class="card-title">Artículos adicionales (costo extra)</div>
+        <div class="add-grid" id="cq-add-grid"></div>
       </div>
 
       <div class="card">
@@ -1115,7 +1174,10 @@
       <div class="card">
         <div class="fi" style="margin-bottom:.8rem">
           <label>Buscar por nombre o folio</label>
-          <input type="text" id="cq-buscar" placeholder="Ej: Ana, COT-0003..." oninput="cqBuscarCotizaciones(this.value)">
+          <div style="position:relative">
+            <input type="text" id="cq-buscar" placeholder="Ej: Ana, COT-0003, 921..., WF2813..." oninput="cqBuscarCotizaciones(this.value)" style="width:100%;padding-right:2rem">
+            <span id="cq-buscar-clear" onclick="cqLimpiarBusqueda()" style="position:absolute;right:.5rem;top:50%;transform:translateY(-50%);cursor:pointer;color:#AAA;font-size:.9rem;display:none">✕</span>
+          </div>
         </div>
         <div class="cq-cal-head">
           <button class="cq-cal-nav" onclick="cqCalMes(-1)">‹</button>
@@ -1129,6 +1191,40 @@
         <div class="cq-cal-grid" id="cq-cal-grid"></div>
       </div>
       <div class="cq-day-list" id="cq-day-list"></div>
+    </div>
+
+    <!-- ── ESTADÍSTICAS DE COTIZACIONES ── -->
+    <div class="section" id="sec-cotizaciones-estadisticas">
+      <div class="sec-title">Estadísticas de cotizaciones</div>
+
+      <div class="card" style="padding:.8rem 1rem;margin-bottom:.6rem">
+        <div style="display:flex;align-items:center;gap:.6rem;flex-wrap:wrap">
+          <label style="font-size:.75rem;color:var(--dorado-d);white-space:nowrap">Año:</label>
+          <select id="cq-stats-anio" onchange="renderEstadisticasCotizador()" style="font-size:.8rem;padding:.3rem .5rem;border:1px solid var(--borde);border-radius:4px;background:var(--bg);color:var(--texto)"></select>
+          <div style="font-size:.72rem;color:#AAA">Cotizaciones creadas en el año seleccionado.</div>
+        </div>
+      </div>
+
+      <!-- KPIs -->
+      <div id="cq-stats-kpis" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:.5rem;margin-bottom:.8rem"></div>
+
+      <!-- Origen -->
+      <div class="card">
+        <div class="card-title">Origen de las clientas</div>
+        <div id="cq-stats-origen"></div>
+      </div>
+
+      <!-- Motivos de no regreso -->
+      <div class="card">
+        <div class="card-title">Motivos de no regreso</div>
+        <div id="cq-stats-motivos"></div>
+      </div>
+
+      <!-- Impresiones -->
+      <div class="card">
+        <div class="card-title">Impresiones</div>
+        <div id="cq-stats-impresiones"></div>
+      </div>
     </div>
 
   </div>
@@ -1622,6 +1718,24 @@
         <input type="text" id="edit-ref-anticipo" placeholder="Número de transferencia...">
       </div>
     </div>
+        <div class="field">
+      <label>Promoción aplicada (opcional)</label>
+      <input type="text" id="edit-promocion" placeholder="Ej: 10% por apartado en el mes" oninput="calcEditTotal()">
+      <div style="margin-top:.5rem">
+        <label style="font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);display:block;margin-bottom:.25rem">Base del descuento</label>
+        <div style="display:flex;gap:1.2rem;align-items:center;padding:.15rem 0">
+          <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+            <input type="radio" name="edit-desc-base" value="vestido" onchange="calcEditTotal()"> Vestido
+          </label>
+          <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+            <input type="radio" name="edit-desc-base" value="paquete" onchange="calcEditTotal()"> Paquete
+          </label>
+          <label style="font-weight:400;text-transform:none;letter-spacing:0;font-size:.82rem;display:flex;align-items:center;gap:.35rem;cursor:pointer">
+            <input type="radio" name="edit-desc-base" value="ambos" checked onchange="calcEditTotal()"> Ambos
+          </label>
+        </div>
+      </div>
+    </div>
 
     <div style="font-size:.68rem;text-transform:uppercase;letter-spacing:.12em;color:var(--dorado-d);margin:.8rem 0 .5rem">Paquete</div>
     <div class="pkg-selector">
@@ -1638,6 +1752,10 @@
     <button type="button" class="btn-sec" style="width:100%;margin-top:.5rem" onclick="agregarProductoLibre()">➕ Agregar producto</button>
     <div style="background:#FDF8F0;border:1px solid var(--dorado);border-radius:3px;padding:.6rem .8rem;margin-top:.7rem;font-size:.78rem">
       <div style="display:flex;justify-content:space-between;margin-bottom:.2rem"><span>Adicionales:</span><strong id="edit-resumen-extras">$0</strong></div>
+            <div id="edit-resumen-descuento-wrap" style="display:none;justify-content:space-between;margin-bottom:.2rem">
+        <span style="color:var(--dorado-d)">Descuento:</span>
+        <strong id="edit-resumen-descuento" style="color:var(--dorado-d)">−$0</strong>
+      </div>
       <div style="display:flex;justify-content:space-between;margin-bottom:.2rem"><span>Total pedido:</span><strong id="edit-resumen-total">$0</strong></div>
       <div style="display:flex;justify-content:space-between"><span>Saldo pendiente:</span><strong id="edit-resumen-saldo">$0</strong></div>
     </div>

@@ -233,6 +233,7 @@ function goSec(id){
   if(id==="progreso-formato"){renderFormatoAjustesLista();}
   if(id==="nueva-cotizacion"){resetFormCotizacion();}
   if(id==="cotizaciones-calendario"){cqCargarYRenderCalendario();}
+    if(id==="cotizaciones-estadisticas"){renderEstadisticasCotizador();}
   if(id==="inv-qr"){
     const lista=document.getElementById("inv-lista");
     if(lista) lista.innerHTML='<p style="color:#AAA;font-size:.82rem;padding:.5rem">⏳ Cargando inventario directo del servidor...</p>';
@@ -650,3 +651,13 @@ window.addEventListener("resize", ()=>{
   const sec = document.getElementById("sec-pagos-ingresos");
   if(sec && sec.classList.contains("active")) setTimeout(renderIngresosMensuales,80);
 });
+// ══ TOTAL DE UN CLIENTE CON DESCUENTO ══
+// Fuente única de verdad. Se usa en tabla, pagos, contrato, nota, etc. para
+// que el descuento se refleje igual en todos lados.
+function totalConDescuentoCliente(c){
+  const bruto = Number(c.precio||0)
+              + Number(c.precioPaquete||0)
+              + (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
+  const desc = Number(c.descuentoMonto||0);
+  return bruto - desc;
+}

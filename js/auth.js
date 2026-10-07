@@ -269,8 +269,10 @@ async function saveWorker(){
       if(snap.exists){msg.style.color="var(--rojo)";msg.textContent="Ese usuario ya existe en Firestore.";return;}
       // Se crea la cuenta real en Firebase Authentication usando la instancia
       // secundaria — así no se cierra la sesión del admin que está creando el colaborador.
+      let nuevoUid=null;
       try{
-        await secondaryApp.auth().createUserWithEmailAndPassword(user+EMAIL_DOMAIN,pass);
+        const cred = await secondaryApp.auth().createUserWithEmailAndPassword(user+EMAIL_DOMAIN,pass);
+        nuevoUid = cred.user.uid;
         await secondaryApp.auth().signOut();
       }catch(authErr){
         console.error("Error al crear cuenta en Firebase Auth:",authErr);
@@ -280,7 +282,17 @@ async function saveWorker(){
           : "No se pudo crear la cuenta: "+authErr.message;
         return;
       }
-      await db.collection("users").doc(user).set({user,display,role:"worker",blocked:false,accesos:[],permisos:{clientes:true,pagos:true,pedidos:true,progreso:true,inventario:true}});
+      // Se guardan DOS documentos con la misma información:
+      //   1) users/{username}   → lo que lee el sistema (rol, permisos, etc.)
+      //   2) usuarios/{uid}     → lo que exigen las reglas de Firestore para
+      //                            permitir leer/escribir (función isTeamMember).
+      // Si solo se escribe el primero, el colaborador puede autenticarse pero
+      // Firestore le rechaza toda lectura → "Missing or insufficient permissions".
+      const datosWorker = {user,display,role:"worker",blocked:false,accesos:[],permisos:{clientes:true,pagos:true,pedidos:true,progreso:true,inventario:true},authUid:nuevoUid};
+      await db.collection("users").doc(user).set(datosWorker);
+      if(nuevoUid){
+        await db.collection("usuarios").doc(nuevoUid).set(datosWorker);
+      }
     }
     closeWorkerModal();loadWorkers();
     toast(editingWorker?"Cuenta actualizada ✓":"Colaborador creado ✓");

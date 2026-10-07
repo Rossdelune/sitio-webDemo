@@ -105,7 +105,7 @@ function generarFormatoEntrega(c){
   const precio  = Number(c.precio||0);
   const paquete = Number(c.precioPaquete||0);
   const extras  = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-  const total   = precio+paquete+extras;
+  const total   = totalConDescuentoCliente(c);
   const tipos   = {"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado"};
   const fEntrega = c.entrega ? new Date(c.entrega+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"long",year:"numeric"}) : "—";
   const fContrato= c.fecha   ? new Date(c.fecha+"T12:00:00").toLocaleDateString("es-MX",{day:"2-digit",month:"2-digit",year:"numeric"}) : "—";
@@ -261,7 +261,7 @@ function generarNotaVenta(c){
   const precio    = Number(c.precio||0);
   const paquete   = Number(c.precioPaquete||0);
   const extras    = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-  const total     = precio+paquete+extras;
+  const total     = totalConDescuentoCliente(c);
   const anticipo  = Number(c.anticipo||0);
   const saldo     = total-anticipo;
   const tipos     = {"xv":"Quinceañera","novia":"Novia","solo":"Solo vestido","custom":"Personalizado"};
@@ -527,7 +527,7 @@ function renderEntregasFecha(){
     const precio=Number(c.precio||0);
     const paquete=Number(c.precioPaquete||0);
     const extras=(c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-    const total=precio+paquete+extras;
+    const total=totalConDescuentoCliente(c);
     const pagado=Number(c.anticipo||0)+(c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
     const saldo=total-pagado;
     totalGeneral+=total;saldoGeneral+=saldo;
@@ -563,7 +563,7 @@ function renderPedidos(){
     const precio=Number(c.precio||0);
     const anticipo=Number(c.anticipo||0);
     const extras=(c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-    const total=precio+extras;
+    const total=totalConDescuentoCliente(c);
     const saldo=total-anticipo;
     const cls=estatusClass(c.estatus);
     return `<tr>
@@ -613,7 +613,7 @@ async function cambiarEstatusPedido(clienteId, nuevoEstatus){
 function generarContrato(c){
   const precio=Number(c.precio||0),paquete=Number(c.precioPaquete||0);
   const extras=(c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-  const total=precio+paquete+extras,anticipo=Number(c.anticipo||0);
+  const total=totalConDescuentoCliente(c),anticipo=Number(c.anticipo||0);
   const folioNota=(c.folio||"????")+ "-A";
   let fLimCalc=c.fechaLimite;
   if(!fLimCalc&&c.fecha){const d=new Date(c.fecha+"T12:00:00");d.setMonth(d.getMonth()+2);if(c.proroga&&c.prorogaDias)d.setDate(d.getDate()+parseInt(c.prorogaDias));fLimCalc=d.toISOString().split("T")[0];}

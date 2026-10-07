@@ -7,7 +7,7 @@ let currentPkgCQ = "xv";
 let _cqCal = { year:null, month:null, selDate:null };
 
 async function loadCotizacionesFS(){
-  const snap = await db.collection("cotizaciones").get();
+  const snap = await db.collection("cotizaciones").get({source:"server"});
   return snap.docs.map(d=>d.data());
 }
 async function saveUnaCotizacion(cot){
@@ -18,7 +18,7 @@ async function saveUnaCotizacion(cot){
 // arreglo local para refrescar la vista sin recargar todo el calendario.
 async function eliminarCotizacionFS(id){
   if(!currentUser || currentUser.role!=="admin"){
-    toast("Solo un administrador puede eliminar cotizaciones", "error");
+    toast("Solo un administrador puede eliminar cotizaciones", "err");
     return;
   }
   if(!confirm("¿Eliminar esta cotización? Esta acción no se puede deshacer.")) return;
@@ -29,7 +29,7 @@ async function eliminarCotizacionFS(id){
     renderCqCalendario();
   }catch(e){
     console.error(e);
-    toast("Error al eliminar la cotización", "error");
+    toast("Error al eliminar la cotización", "err");
   }
 }
 // Folio propio de cotizaciones — mismo criterio que getNextFolio() de clientes
@@ -41,7 +41,67 @@ async function getNextFolioCotizacion(){
   const max = Math.max(...nums);
   return "COT-"+String(max+1).padStart(4,"0");
 }
+// ══ ESCANEO QR EN EL COTIZADOR ══
+// Versión adaptada de buscarPorQR() de pedidos.js. Usa IDs con prefijo "cq-"
+// y llama a cqCalcTotal() en lugar de calcTotal(). Guarda el articuloId en
+// window._cqArticuloActual y en la raíz de la cotización, para que sobreviva
+// la conversión al cliente.
+window._cqArticuloActual = null;
 
+async function cqBuscarPorQR(){
+  const input = document.getElementById("cq-inv-scan-input");
+  const msg = document.getElementById("cq-inv-scan-msg");
+  if(!input || !msg) return;
+  const id = (input.value||"").trim();
+  msg.textContent = "";
+  if(!id) return;
+  msg.style.color = "#AAA";
+  msg.textContent = "⏳ Buscando en inventario...";
+
+  // Leer el artículo directo de Firestore, no de window._invData.
+  // Así el stock refleja el estado real, no el que había al hacer login.
+  let art = null;
+  try{
+    const snap = await db.collection("inventario").doc(String(id)).get();
+    if(snap.exists) art = snap.data();
+  }catch(e){
+    msg.style.color = "var(--rojo)";
+    msg.textContent = "✕ Error al consultar inventario. Revisa tu conexión.";
+    return;
+  }
+
+  if(!art){
+    msg.style.color = "var(--rojo)";
+    msg.textContent = "✕ Artículo no encontrado en inventario.";
+    return;
+  }
+
+  document.getElementById("cq-marca").value = art.marca||"";
+  document.getElementById("cq-modelo").value = art.modelo||"";
+  document.getElementById("cq-color-name").value = art.colorNombre||"";
+  if(art.precio){
+    document.getElementById("cq-precio").value = art.precio;
+  }
+  window._cqArticuloActual = art.id;
+  cqCalcTotal();
+
+  const btnQuitar = ' <button type="button" onclick="cqQuitarArticuloEscaneado()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+  const stock = Number(art.cantidad)||0;
+  if(stock > 0){
+    msg.style.color = "var(--dorado-d)";
+    msg.innerHTML = "✓ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+btnQuitar;
+  } else {
+    msg.style.color = "#B8860B";
+    msg.innerHTML = "⚠️ "+art.categoria+" · "+art.modelo+" · Talla "+art.talla+" · "+art.colorNombre+" — sin stock en tienda"+btnQuitar;
+  }
+  input.value = "";
+}
+
+function cqQuitarArticuloEscaneado(){
+  window._cqArticuloActual = null;
+  const msg = document.getElementById("cq-inv-scan-msg");
+  if(msg){ msg.style.color = ""; msg.innerHTML = ""; }
+}
 // ══ PAQUETE — reutiliza PKG_XV/PKG_NOVIA/PKG_CUSTOM (mismos datos que Nuevo
 // cliente), pero con su propio contenedor DOM (cq-pkg-components) para no
 // pisar los IDs del formulario de clientes. ══
@@ -78,7 +138,7 @@ function cqToggleComp(id){
   body.style.opacity = chk.checked ? "1" : ".35";
 }
 function cqGetPkgData(){
-  if(currentPkgCQ==="solo") return {tipo:"solo", componentes:[]};
+  if(currentPkgCQ==="solo") return {tipo:"solo", componentes:[], adicionales:cqGetAdicionales()};
   const items = currentPkgCQ==="novia"?PKG_NOVIA:currentPkgCQ==="custom"?PKG_CUSTOM:PKG_XV;
   const comps = items.map(c=>{
     const chk = document.getElementById("cq-chk-"+c.id);
@@ -86,31 +146,126 @@ function cqGetPkgData(){
     const selBtn = document.querySelector(`#cq-opts-${c.id} .comp-opt.sel`);
     return {id:c.id, name:c.name, opcion: selBtn?selBtn.textContent:""};
   }).filter(Boolean);
-  return {tipo:currentPkgCQ, componentes:comps};
+  return {tipo:currentPkgCQ, componentes:comps, adicionales:cqGetAdicionales()};
 }
 // Re-aplica los componentes guardados de una cotización (usado al editar):
 // marca los checkboxes que estaban activos y selecciona la opción guardada
 // de cada uno, sobre el markup recién generado por cqInitPkgComponents.
 function cqAplicarComponentesGuardados(componentes){
-  if(!componentes || !componentes.length) return;
-  componentes.forEach(comp=>{
-    const chk = document.getElementById("cq-chk-"+comp.id);
+  const lista = componentes || [];
+  // Recorre TODOS los componentes del tipo actual (no solo los que vienen en
+  // la cotización) y aplica checked/opción según corresponda. Así, los que el
+  // usuario DESmarcó en la cotización también quedan desmarcados al editar,
+  // en vez de quedar con los defaults que dejó cqInitPkgComponents().
+  const items = currentPkgCQ==="novia" ? PKG_NOVIA
+              : currentPkgCQ==="custom" ? PKG_CUSTOM
+              : PKG_XV;
+  items.forEach(c=>{
+    const chk = document.getElementById("cq-chk-"+c.id);
     if(!chk) return;
-    chk.checked = true;
-    cqToggleComp(comp.id);
-    const opts = document.querySelectorAll(`#cq-opts-${comp.id} .comp-opt`);
-    opts.forEach(b=>{
-      b.classList.toggle("sel", b.textContent===comp.opcion);
-    });
+    const match = lista.find(x=>x.id===c.id);
+    chk.checked = !!match;
+    cqToggleComp(c.id);
+    const opts = document.querySelectorAll(`#cq-opts-${c.id} .comp-opt`);
+    const opcion = match ? match.opcion : c.default;
+    opts.forEach(b=>b.classList.toggle("sel", b.textContent===opcion));
   });
 }
-function cqCalcTotal(){
-  const vestido = parseFloat(document.getElementById("cq-precio").value)||0;
-  const paquete = parseFloat(document.getElementById("cq-precio-paquete").value)||0;
-  const total = vestido + paquete;
-  document.getElementById("cq-resumen-total").textContent = "$"+total.toLocaleString("es-MX");
+// ══ DESCUENTO — parsea "promocion" y calcula el monto según la base elegida ══
+// Acepta "10", "10%", "10 %". Si no hay match o el % es 0, no descuenta.
+// Si el radio group no existe en el DOM (versión anterior de index.html),
+// cae a "ambos" sin romper.
+function cqGetDescuentoInfo(){
+  const promoRaw = (document.getElementById("cq-promocion")?.value||"").trim();
+  const m = promoRaw.match(/(\d+(?:[.,]\d+)?)\s*%?/);
+  const pct = m ? Math.min(100, Math.max(0, parseFloat(m[1].replace(",", ".")))) : 0;
+
+  const radio = document.querySelector('input[name="cq-desc-base"]:checked');
+  const base = radio ? radio.value : "ambos";
+
+  const vestido = parseFloat(document.getElementById("cq-precio")?.value)||0;
+  const paquete = parseFloat(document.getElementById("cq-precio-paquete")?.value)||0;
+
+  const baseMonto = base==="vestido" ? vestido
+                  : base==="paquete" ? paquete
+                  : vestido + paquete;
+
+  const descuentoMonto = Math.round(baseMonto * pct / 100);
+  const bruto = vestido + paquete;
+  const neto  = bruto - descuentoMonto;
+
+  return { pct, base, baseMonto, descuentoMonto, bruto, neto };
 }
 
+function cqCalcTotal(){
+  const info = cqGetDescuentoInfo();
+  const extras = cqGetAdicionales().reduce((s,a)=>s+Number(a.precio||0),0);
+  const totalConExtras = info.neto + extras;
+  document.getElementById("cq-resumen-total").textContent =
+    "$" + totalConExtras.toLocaleString("es-MX");
+
+  const wrap = document.getElementById("cq-resumen-descuento-wrap");
+  const el   = document.getElementById("cq-resumen-descuento");
+  if(wrap && el){
+    if(info.pct > 0 && info.descuentoMonto > 0){
+      wrap.style.display = "flex";
+      el.textContent = "−$" + info.descuentoMonto.toLocaleString("es-MX")
+                     + " (" + info.pct + "% " + info.base + ")";
+    } else {
+      wrap.style.display = "none";
+      el.textContent = "";
+    }
+  }
+}
+
+// Pinta el grid de adicionales en el cotizador. Si recibe "existing", restaura
+// los que ya venían guardados (usado al editar). Si no, pinta todo desmarcado.
+// Referencia ADICIONALES en runtime porque clientes.js carga después de este archivo.
+function cqInitAdicionales(existing){
+  const grid = document.getElementById("cq-add-grid");
+  if(!grid) return;
+  if(typeof ADICIONALES === "undefined"){
+    grid.innerHTML = '<p style="font-size:.8rem;color:#AAA;padding:.5rem 0">Cargando catálogo...</p>';
+    return;
+  }
+  const guardados = existing || [];
+  grid.innerHTML = ADICIONALES.map((a,i)=>{
+    const match = guardados.find(e=>e.nombre===a);
+    const checked = !!match;
+    const precio = match ? (match.precio||"") : "";
+    const nota = match ? (match.nota||"") : "";
+    return `<div class="add-item ${checked?"sel":""}" id="cq-ai-${i}">
+      <div class="add-header">
+        <input type="checkbox" class="add-check" id="cq-ac-${i}" ${checked?"checked":""} onchange="cqToggleAdicional(${i})">
+        <label class="add-label" for="cq-ac-${i}">${a}</label>
+        <input type="number" class="add-price" id="cq-ap-${i}" placeholder="$0" min="0" value="${precio}" oninput="cqCalcTotal()">
+      </div>
+      <input class="add-note" id="cq-an-${i}" placeholder="Especificaciones..." value="${nota}">
+    </div>`;
+  }).join("");
+}
+
+function cqToggleAdicional(i){
+  const chk = document.getElementById("cq-ac-"+i);
+  if(!chk) return;
+  document.getElementById("cq-ai-"+i).classList.toggle("sel", chk.checked);
+  cqCalcTotal();
+}
+
+// Devuelve solo los adicionales marcados, con su precio y nota.
+// Mismo formato que getAdicionales() de clientes.js para que se pueda transferir sin conversión.
+function cqGetAdicionales(){
+  if(typeof ADICIONALES === "undefined") return [];
+  return ADICIONALES.map((a,i)=>{
+    const chk = document.getElementById("cq-ac-"+i);
+    if(!chk||!chk.checked) return null;
+    return {
+      nombre: a,
+      precio: document.getElementById("cq-ap-"+i).value||0,
+      nota: document.getElementById("cq-an-"+i).value||""
+    };
+  }).filter(Boolean);
+}
 function resetFormCotizacion(){
   window._cqEditandoId = null;
   ["cq-nombre","cq-tel","cq-marca","cq-modelo","cq-color-name","cq-precio","cq-precio-paquete","cq-promocion",
@@ -119,9 +274,23 @@ function resetFormCotizacion(){
   });
   const origen=document.getElementById("cq-origen"); if(origen) origen.value="";
   const msg=document.getElementById("cotizacion-msg"); if(msg) msg.textContent="";
+// Reset base de descuento a "ambos"
+document.querySelectorAll('input[name="cq-desc-base"]').forEach(r=>{
+  r.checked = (r.value === "ambos");
+});
   const titulo=document.querySelector("#sec-nueva-cotizacion .sec-title"); if(titulo) titulo.textContent="Nueva cotización";
   const btn=document.getElementById("btn-guardar-cotizacion"); if(btn) btn.innerHTML="💾 Guardar cotización";
-  cqSelPkg("xv");
+  // Reset del escáner QR
+  window._cqArticuloActual = null;
+  const cqScanMsgReset = document.getElementById("cq-inv-scan-msg");
+  if(cqScanMsgReset){ cqScanMsgReset.style.color = ""; cqScanMsgReset.innerHTML = ""; }
+  const cqScanInputReset = document.getElementById("cq-inv-scan-input");
+  if(cqScanInputReset) cqScanInputReset.value = "";
+  // Reset del selector de estadísticas (por si el usuario dejó un año filtrado)
+  const statsSel = document.getElementById("cq-stats-anio");
+  if(statsSel) statsSel.value = "";
+cqSelPkg("xv");
+  cqInitAdicionales();
   cqCalcTotal();
 }
 
@@ -134,6 +303,7 @@ async function guardarCotizacion(){
   if(!nombre){ msg.textContent="El nombre del prospecto es obligatorio."; return; }
   btn.disabled = true; btn.innerHTML = '<span class="spinner"></span> Guardando...';
   try{
+    const descInfo = cqGetDescuentoInfo();
     const datosFormulario = {
       nombre,
       telefono: document.getElementById("cq-tel").value.trim(),
@@ -148,12 +318,14 @@ async function guardarCotizacion(){
       fechaCita: document.getElementById("cq-fecha-cita").value,
       fechaEvento: document.getElementById("cq-fecha-evento").value,
       vigencia: document.getElementById("cq-vigencia").value,
-      anotaciones: document.getElementById("cq-obs").value.trim()
+      anotaciones: document.getElementById("cq-obs").value.trim(),
+            articuloId: window._cqArticuloActual || null,
+      descuentoPct:   descInfo.pct,
+      descuentoBase:  descInfo.base,
+      descuentoMonto: descInfo.descuentoMonto
     };
     let cot;
     if(editando){
-      // Edición: se conserva folio, estatus, historial de impresiones y
-      // respaldo — solo se actualizan los datos que el formulario controla.
       const original = allCotizaciones.find(c=>c.id===window._cqEditandoId);
       if(!original) throw new Error("No se encontró la cotización original.");
       cot = Object.assign({}, original, datosFormulario);
@@ -191,8 +363,34 @@ async function guardarCotizacion(){
 
 // ══ CALENDARIO ══
 async function cqCargarYRenderCalendario(){
-  allCotizaciones = await loadCotizacionesFS();
+  try{
+    // Timeout defensivo: el SDK de Firestore no rechaza la promesa cuando
+    // se corta la red (solo reintenta en background). Si en 5 segundos no
+    // hay respuesta, forzamos el error para poder avisar al usuario.
+    allCotizaciones = await Promise.race([
+      loadCotizacionesFS(),
+      new Promise((_, reject)=>setTimeout(()=>reject(new Error("Timeout de conexión")), 5000))
+    ]);
+  }catch(e){
+    console.error("No se pudo cargar el calendario:", e);
+    const cont = document.getElementById("cq-day-list");
+    if(cont){
+      cont.innerHTML = '<p style="color:var(--rojo);font-size:.82rem;padding:.5rem">⚠️ No se pudieron cargar las cotizaciones. Revisa tu conexión a internet e intenta de nuevo.</p>';
+    }
+    // También mostrar la cabecera del calendario (por si una búsqueda previa
+    // la dejó oculta), pero sin intentar pintar la cuadrícula.
+    const headMes = document.querySelector("#sec-cotizaciones-calendario .cq-cal-head");
+    const dowGrid = document.getElementById("cq-cal-dow");
+    const mesGrid = document.getElementById("cq-cal-grid");
+    [headMes, dowGrid, mesGrid].forEach(el=>{ if(el) el.style.display = ""; });
+    return;
+  }
   const buscar = document.getElementById("cq-buscar"); if(buscar) buscar.value = "";
+  const clearBtn = document.getElementById("cq-buscar-clear"); if(clearBtn) clearBtn.style.display = "none";
+  const headMes = document.querySelector("#sec-cotizaciones-calendario .cq-cal-head");
+  const dowGrid = document.getElementById("cq-cal-dow");
+  const mesGrid = document.getElementById("cq-cal-grid");
+  [headMes, dowGrid, mesGrid].forEach(el=>{ if(el) el.style.display = ""; });
   const hoy = new Date();
   if(_cqCal.year===null){ _cqCal.year=hoy.getFullYear(); _cqCal.month=hoy.getMonth(); }
   renderCqCalendario();
@@ -201,6 +399,11 @@ function cqCalMes(delta){
   _cqCal.month += delta;
   if(_cqCal.month<0){ _cqCal.month=11; _cqCal.year--; }
   if(_cqCal.month>11){ _cqCal.month=0; _cqCal.year++; }
+  // Al cambiar de mes, el día seleccionado del mes anterior ya no aplica —
+  // se limpia para que no quede visible una lista de cotizaciones que no
+  // corresponden al mes que se está viendo.
+  _cqCal.selDate = null;
+  document.getElementById("cq-day-list").innerHTML = "";
   renderCqCalendario();
 }
 const CQ_MESES = ["Enero","Febrero","Marzo","Abril","Mayo","Junio","Julio","Agosto","Septiembre","Octubre","Noviembre","Diciembre"];
@@ -250,7 +453,10 @@ const CQ_ESTATUS_LABEL = {
 // vista de día del calendario como por los resultados del buscador.
 function cqCardHTML(c){
   const est = CQ_ESTATUS_LABEL[c.estatus] || CQ_ESTATUS_LABEL.pendiente;
-  const total = (c.precio||0) + (c.precioPaquete||0);
+  const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
+  const total = (c.precio||0) + (c.precioPaquete||0) + extras;
+  const desc = Number(c.descuentoMonto)||0;
+  const totalNeto = total - desc;
   const puedeConvertir = c.estatus!=="convertida";
   const esAdmin = currentUser && currentUser.role==="admin";
   const descModelo = [c.marca,c.modelo,c.colorNombre].filter(Boolean).join(" · ") || "—";
@@ -268,7 +474,7 @@ function cqCardHTML(c){
           <span class="status-badge ${est.cls}">${est.label}</span>
         </div>
       </div>
-      <div style="font-size:.78rem;color:#888">Cita: ${c.fechaCita||"—"} · Evento: ${c.fechaEvento||"—"} · Total estimado: $${total.toLocaleString("es-MX")}</div>
+      <div style="font-size:.78rem;color:#888">Cita: ${c.fechaCita||"—"} · Evento: ${c.fechaEvento||"—"} · Total estimado: $${totalNeto.toLocaleString("es-MX")}${desc>0?` <span style="color:var(--dorado-d)">(desc. $${desc.toLocaleString("es-MX")})</span>`:""}</div>
       ${c.vigencia?`<div style="font-size:.72rem;color:${expirada?"#8B4A42":"#AAA"}">Vigencia hasta: ${c.vigencia}</div>`:""}
       ${c.motivoNoRegreso?`<div style="font-size:.72rem;color:var(--rojo);margin-top:.3rem">Motivo: ${c.motivoNoRegreso}</div>`:""}
       ${c.cotizacionImagenUrl?`<div style="font-size:.72rem;margin-top:.3rem"><a href="${c.cotizacionImagenUrl}" target="_blank" rel="noopener">📎 Ver respaldo escaneado</a></div>`:""}
@@ -291,21 +497,53 @@ function cqRenderLista(lista, mensajeVacio){
   cont.innerHTML = lista.map(cqCardHTML).join("");
 }
 function renderCqDayList(dateStr){
+  if(!dateStr){
+    const cont = document.getElementById("cq-day-list");
+    if(cont) cont.innerHTML = "";
+    return;
+  }
   const citas = allCotizaciones.filter(c=>c.fechaCita===dateStr);
   cqRenderLista(citas, `Sin cotizaciones para el ${dateStr}.`);
 }
 // Buscador por nombre o folio — funciona sin importar el día seleccionado.
 function cqBuscarCotizaciones(q){
-  q = q.trim().toLowerCase();
+  q = q.trim();
+  const headMes = document.querySelector("#sec-cotizaciones-calendario .cq-cal-head");
+  const dowGrid = document.getElementById("cq-cal-dow");
+  const mesGrid = document.getElementById("cq-cal-grid");
+  const clearBtn = document.getElementById("cq-buscar-clear");
+
   if(!q){
+    [headMes, dowGrid, mesGrid].forEach(el=>{ if(el) el.style.display = ""; });
+    if(clearBtn) clearBtn.style.display = "none";
     if(_cqCal.selDate) renderCqDayList(_cqCal.selDate);
     else document.getElementById("cq-day-list").innerHTML = "";
     return;
   }
-  const resultados = allCotizaciones.filter(c=>
-    (c.nombre||"").toLowerCase().includes(q) || (c.folio||"").toLowerCase().includes(q)
-  );
+
+  [headMes, dowGrid, mesGrid].forEach(el=>{ if(el) el.style.display = "none"; });
+  if(clearBtn) clearBtn.style.display = "block";
+
+  // normTexto() vive en clientes.js (carga después de este archivo pero se
+  // ejecuta mucho antes de que el buscador se use). Si por alguna razón no
+  // está disponible, cae a un lowercase simple.
+  const norm = (typeof normTexto === "function") ? normTexto : (s=>(s||"").toString().toLowerCase());
+  const qn = norm(q);
+
+  const resultados = allCotizaciones.filter(c=>{
+    return norm(c.nombre).includes(qn)
+        || norm(c.folio).includes(qn)
+        || norm(c.telefono).includes(qn)
+        || norm(c.marca).includes(qn)
+        || norm(c.modelo).includes(qn);
+  });
   cqRenderLista(resultados, "Sin resultados para esa búsqueda.");
+}
+
+function cqLimpiarBusqueda(){
+  const inp = document.getElementById("cq-buscar");
+  if(inp) inp.value = "";
+  cqBuscarCotizaciones("");
 }
 async function cqCambiarEstatus(id, nuevoEstatus){
   const cot = allCotizaciones.find(c=>c.id===id);
@@ -313,7 +551,11 @@ async function cqCambiarEstatus(id, nuevoEstatus){
   cot.estatus = nuevoEstatus;
   await saveUnaCotizacion(cot);
   toast("✓ Estatus actualizado");
-  renderCqDayList(_cqCal.selDate);
+  // Si hay una búsqueda activa, mantener la vista de resultados. Si no,
+  // refrescar la lista del día seleccionado.
+  const q = (document.getElementById("cq-buscar")?.value||"").trim();
+  if(q) cqBuscarCotizaciones(q);
+  else if(_cqCal.selDate) renderCqDayList(_cqCal.selDate);
 }
 const CQ_MOTIVOS = ["No encontró el modelo","No le gustó el color","Precio","No le convenció la promoción","Otro"];
 let _cqMotivoTargetId = null;
@@ -349,7 +591,9 @@ async function cqGuardarNoRegreso(id, motivo){
   cot.motivoNoRegreso = motivo;
   await saveUnaCotizacion(cot);
   toast("Registrado — no regresó a apartar");
-  renderCqDayList(_cqCal.selDate);
+  const q = (document.getElementById("cq-buscar")?.value||"").trim();
+  if(q) cqBuscarCotizaciones(q);
+  else if(_cqCal.selDate) renderCqDayList(_cqCal.selDate);
 }
 // Convertir a cliente: prellena el formulario real de Nuevo cliente con los
 // datos de la cotización. NO marca la cotización como convertida aquí — eso
@@ -358,32 +602,300 @@ async function cqGuardarNoRegreso(id, motivo){
 function cqConvertirCliente(id){
   const cot = allCotizaciones.find(c=>c.id===id);
   if(!cot) return;
-  goSec("nuevo-cliente"); // esto limpia el formulario Y la bandera anterior
+  goSec("nuevo-cliente");
   document.getElementById("c-nombre").value = cot.nombre;
   document.getElementById("c-cel").value = cot.telefono||"";
   document.getElementById("c-marca").value = cot.marca||"";
   document.getElementById("c-modelo").value = cot.modelo||"";
   document.getElementById("c-color-name").value = cot.colorNombre||"";
+
   let notaExtra = "";
   if(cot.paquete && (cot.paquete.tipo==="xv"||cot.paquete.tipo==="novia")){
     document.getElementById("c-tipo").value = cot.paquete.tipo;
     updatePkg();
-  }else if(cot.paquete && (cot.paquete.tipo==="solo"||cot.paquete.tipo==="custom")){
-    // El formulario de cliente solo admite XV/Novia — se deja en blanco a
-    // propósito para que se elija a mano, en vez de forzar un valor incorrecto.
-    notaExtra = "⚠️ Selecciona manualmente el tipo de paquete — la cotización era \""+(cot.paquete.tipo==="solo"?"Solo vestido":"Personalizado")+"\".";
+    if(typeof aplicarComponentesCotizacionAlCliente === "function"){
+      aplicarComponentesCotizacionAlCliente(cot.paquete.componentes || []);
+    }
+  }else if(cot.paquete && cot.paquete.tipo==="custom"){
+    // Personalizado: el select "c-tipo" solo tiene XV/Novia, pero el
+    // selector de paquete sí admite "custom". Se activa ese botón y se
+    // transfieren los componentes guardados.
+    if(typeof selPkg === "function") selPkg("custom");
+    if(typeof aplicarComponentesCotizacionAlCliente === "function"){
+      aplicarComponentesCotizacionAlCliente(cot.paquete.componentes || []);
+    }
+    notaExtra = "⚠️ La cotización era \"Personalizado\". Revisa los componentes del paquete y selecciona el tipo de vestido si aplica.";
+  }else if(cot.paquete && cot.paquete.tipo==="solo"){
+    notaExtra = "⚠️ Selecciona manualmente el tipo de paquete — la cotización era \"Solo vestido\".";
   }
+
+  // Precios ORIGINALES sin tocar — el descuento se aplica por separado.
   document.getElementById("c-precio").value = cot.precio||"";
   document.getElementById("c-precio-paquete").value = cot.precioPaquete||"";
-  const notaCot = `Convertido desde cotización ${cot.folio}${cot.promocion?" — promoción: "+cot.promocion:""}`;
-  document.getElementById("c-obs").value = [notaCot, notaExtra].filter(Boolean).join("\n");
+
+  // Promoción + base del descuento
+  document.getElementById("c-promocion").value = cot.promocion||"";
+  const baseGuardada = cot.descuentoBase || "ambos";
+  document.querySelectorAll('input[name="c-desc-base"]').forEach(r=>{
+    r.checked = (r.value === baseGuardada);
+  });
+
+  // Fecha del evento
+  if(cot.fechaEvento){
+    document.getElementById("c-entrega").value = cot.fechaEvento;
+  }
+
+  // Adicionales
+  const adicionalesCot = (cot.paquete && cot.paquete.adicionales) || [];
+  if(typeof ADICIONALES !== "undefined"){
+    ADICIONALES.forEach((a,i)=>{
+      const match = adicionalesCot.find(x=>x.nombre===a);
+      const chk = document.getElementById("ac-"+i);
+      if(!chk) return;
+      chk.checked = !!match;
+      const item = document.getElementById("ai-"+i);
+      if(item) item.classList.toggle("sel", !!match);
+      if(match){
+        const ap = document.getElementById("ap-"+i);
+        const an = document.getElementById("an-"+i);
+        if(ap) ap.value = match.precio||"";
+        if(an) an.value = match.nota||"";
+      }
+    });
+  }
+
+  // Observaciones — solo lo que no tiene campo propio en el cliente
+  const lineas = [`Convertido desde cotización ${cot.folio}`];
+  if(cot.origen)      lineas.push(`Origen: ${cot.origen}`);
+  if(cot.fechaCita)   lineas.push(`Fecha de la cita: ${cot.fechaCita}`);
+  if(cot.vigencia)    lineas.push(`Vigencia de la cotización: hasta ${cot.vigencia}`);
+  if(cot.anotaciones){ lineas.push(""); lineas.push(`Notas de la cotización: ${cot.anotaciones}`); }
+  if(notaExtra)       { lineas.push(""); lineas.push(notaExtra); }
+  document.getElementById("c-obs").value = lineas.join("\n");
+  // Transferir vínculo con inventario al formulario de cliente. Se hace
+  // DESPUÉS de goSec (que ya limpió window._qrArticuloActual) y ANTES de que
+  // el usuario guarde, para que saveCliente lo tome y lo guarde.
+  if(cot.articuloId){
+    window._qrArticuloActual = cot.articuloId;
+    const cqArtCli = (window._invData||[]).find(a=>a.id===cot.articuloId);
+    const cliScanMsg = document.getElementById("inv-scan-msg");
+    if(cliScanMsg && cqArtCli){
+      const stockCli = Number(cqArtCli.cantidad)||0;
+      if(stockCli > 0){
+        cliScanMsg.style.color = "var(--dorado-d)";
+        cliScanMsg.innerHTML = "✓ "+cqArtCli.categoria+" · "+cqArtCli.modelo+" · Talla "+cqArtCli.talla+" · "+cqArtCli.colorNombre;
+      } else {
+        cliScanMsg.style.color = "#B8860B";
+        cliScanMsg.innerHTML = "⚠️ "+cqArtCli.categoria+" · "+cqArtCli.modelo+" · Talla "+cqArtCli.talla+" · "+cqArtCli.colorNombre+" — sin stock en tienda";
+      }
+    }
+  }
+
   calcTotal();
-  // Se marca DESPUÉS de goSec (que ya limpió cualquier bandera vieja) para
-  // que quede activa mientras el usuario revisa y guarda.
   window._cqConvirtiendoId = id;
   toast("Formulario prellenado — revisa y guarda el cliente");
 }
 
+// ══ ESTADÍSTICAS DEL COTIZADOR ══
+// Calcula métricas sobre las cotizaciones creadas en un año. Solo lectura —
+// nunca escribe en Firestore. Se apoya en los campos que ya existen en
+// cada documento: estatus, origen, motivoNoRegreso, impresiones.
+
+async function renderEstadisticasCotizador(){
+  // 1) Cargar cotizaciones frescas del servidor
+  let cots;
+  try{
+    cots = await loadCotizacionesFS();
+    allCotizaciones = cots;
+  }catch(e){
+    console.error("No se pudieron cargar cotizaciones:", e);
+    const kpis = document.getElementById("cq-stats-kpis");
+    if(kpis) kpis.innerHTML = '<div style="grid-column:1/-1;padding:1rem;color:var(--rojo);text-align:center">⚠️ No se pudieron cargar las cotizaciones. Revisa tu conexión.</div>';
+    return;
+  }
+
+  // 2) Poblar select de años (solo la primera vez, o si cambió la lista)
+  const sel = document.getElementById("cq-stats-anio");
+  if(sel){
+    const anios = new Set();
+    cots.forEach(c=>{
+      const y = (c.fechaCreacion||"").slice(0,4);
+      if(y && /^\d{4}$/.test(y)) anios.add(y);
+    });
+    const anioActual = String(new Date().getFullYear());
+    anios.add(anioActual);
+    const listaAnios = [...anios].sort((a,b)=>b.localeCompare(a));
+    const valorPrevio = sel.value;
+    sel.innerHTML = listaAnios.map(a=>`<option value="${a}">${a}</option>`).join("");
+    sel.value = valorPrevio && listaAnios.includes(valorPrevio) ? valorPrevio : anioActual;
+  }
+
+  const anio = (sel && sel.value) || String(new Date().getFullYear());
+
+  // 3) Filtrar por año
+  const delAnio = cots.filter(c=>(c.fechaCreacion||"").slice(0,4) === anio);
+
+  // 4) KPIs generales
+  const total      = delAnio.length;
+  const convertidas = delAnio.filter(c=>c.estatus==="convertida").length;
+  const noRegreso  = delAnio.filter(c=>c.estatus==="no_regreso").length;
+  const pendientes = delAnio.filter(c=>c.estatus==="pendiente"||c.estatus==="agendada").length;
+  const baseTasa   = convertidas + noRegreso;
+  const tasa       = baseTasa > 0 ? Math.round(convertidas * 100 / baseTasa) : 0;
+
+  const kpis = document.getElementById("cq-stats-kpis");
+  if(kpis){
+    kpis.innerHTML = `
+      <div class="card" style="padding:.7rem .9rem;text-align:center">
+        <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Total cotizaciones</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--cafe)">${total}</div>
+      </div>
+      <div class="card" style="padding:.7rem .9rem;text-align:center">
+        <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Convertidas</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#3A6EA5">${convertidas}</div>
+      </div>
+      <div class="card" style="padding:.7rem .9rem;text-align:center">
+        <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">No regresaron</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--rojo)">${noRegreso}</div>
+      </div>
+      <div class="card" style="padding:.7rem .9rem;text-align:center">
+        <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Tasa de conversión</div>
+        <div style="font-size:1.2rem;font-weight:700;color:var(--verde)">${tasa}%</div>
+        <div style="font-size:.62rem;color:#AAA;margin-top:.2rem">Sobre ${baseTasa} con veredicto</div>
+      </div>
+      <div class="card" style="padding:.7rem .9rem;text-align:center">
+        <div style="font-size:.65rem;text-transform:uppercase;letter-spacing:.1em;color:#AAA;margin-bottom:.3rem">Pendientes / Agendadas</div>
+        <div style="font-size:1.2rem;font-weight:700;color:#B8860B">${pendientes}</div>
+      </div>`;
+  }
+
+  // 5) Origen
+  const porOrigen = {};
+  delAnio.forEach(c=>{
+    const o = (c.origen||"Sin especificar").trim();
+    if(!porOrigen[o]) porOrigen[o] = { total:0, convertidas:0, noRegreso:0 };
+    porOrigen[o].total++;
+    if(c.estatus==="convertida") porOrigen[o].convertidas++;
+    if(c.estatus==="no_regreso") porOrigen[o].noRegreso++;
+  });
+  const filasOrigen = Object.entries(porOrigen)
+    .map(([o,v])=>({
+      origen:o,
+      total:v.total,
+      convertidas:v.convertidas,
+      noRegreso:v.noRegreso,
+      tasa: (v.convertidas+v.noRegreso)>0 ? Math.round(v.convertidas*100/(v.convertidas+v.noRegreso)) : 0
+    }))
+    .sort((a,b)=>b.total-a.total);
+
+  const contOrigen = document.getElementById("cq-stats-origen");
+  if(contOrigen){
+    if(!filasOrigen.length){
+      contOrigen.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin datos para este año.</p>';
+    }else{
+      contOrigen.innerHTML = `
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr>
+              <th>Origen</th><th style="text-align:right">Total</th>
+              <th style="text-align:right">Convertidas</th>
+              <th style="text-align:right">No regresaron</th>
+              <th style="text-align:right">Tasa</th>
+            </tr></thead>
+            <tbody>
+              ${filasOrigen.map(f=>`<tr>
+                <td style="font-size:.8rem">${f.origen}</td>
+                <td style="font-size:.76rem;text-align:right">${f.total}</td>
+                <td style="font-size:.76rem;text-align:right;color:#3A6EA5">${f.convertidas}</td>
+                <td style="font-size:.76rem;text-align:right;color:var(--rojo)">${f.noRegreso}</td>
+                <td style="font-size:.76rem;text-align:right;color:var(--verde);font-weight:600">${f.tasa}%</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+  }
+
+  // 6) Motivos de no regreso
+  const porMotivo = {};
+  delAnio.filter(c=>c.estatus==="no_regreso").forEach(c=>{
+    const m = (c.motivoNoRegreso||"Sin especificar").trim();
+    porMotivo[m] = (porMotivo[m]||0) + 1;
+  });
+  const filasMotivo = Object.entries(porMotivo)
+    .map(([m,n])=>({motivo:m, cantidad:n, pct: noRegreso>0 ? Math.round(n*100/noRegreso) : 0}))
+    .sort((a,b)=>b.cantidad-a.cantidad);
+
+  const contMotivos = document.getElementById("cq-stats-motivos");
+  if(contMotivos){
+    if(!filasMotivo.length){
+      contMotivos.innerHTML = '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin cotizaciones "no regresó" este año.</p>';
+    }else{
+      contMotivos.innerHTML = `
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr>
+              <th>Motivo</th>
+              <th style="text-align:right">Cantidad</th>
+              <th style="text-align:right">% del total</th>
+            </tr></thead>
+            <tbody>
+              ${filasMotivo.map(f=>`<tr>
+                <td style="font-size:.8rem">${f.motivo}</td>
+                <td style="font-size:.76rem;text-align:right">${f.cantidad}</td>
+                <td style="font-size:.76rem;text-align:right;color:var(--rojo);font-weight:600">${f.pct}%</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+  }
+
+  // 7) Impresiones
+  const totalImpresiones = delAnio.reduce((s,c)=>s + (Array.isArray(c.impresiones)?c.impresiones.length:0), 0);
+  const conAlMenosUna = delAnio.filter(c=>Array.isArray(c.impresiones) && c.impresiones.length>0);
+  const promedio = conAlMenosUna.length > 0 ? (totalImpresiones / conAlMenosUna.length).toFixed(1) : "0";
+  const topImpresas = delAnio
+    .filter(c=>Array.isArray(c.impresiones) && c.impresiones.length>0)
+    .map(c=>({folio:c.folio, nombre:c.nombre, veces:c.impresiones.length}))
+    .sort((a,b)=>b.veces-a.veces)
+    .slice(0,10);
+
+  const contImpr = document.getElementById("cq-stats-impresiones");
+  if(contImpr){
+    const encabezado = `
+      <div style="display:flex;gap:.6rem;flex-wrap:wrap;margin-bottom:.6rem">
+        <div style="background:#F5EDE0;border-radius:6px;padding:.5rem .9rem;flex:1;min-width:150px">
+          <div style="font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d)">Total impresiones</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--texto);line-height:1.2">${totalImpresiones}</div>
+        </div>
+        <div style="background:#F5EDE0;border-radius:6px;padding:.5rem .9rem;flex:1;min-width:150px">
+          <div style="font-size:.62rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d)">Promedio por cotización impresa</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:1.4rem;color:var(--texto);line-height:1.2">${promedio}</div>
+        </div>
+      </div>`;
+    if(!topImpresas.length){
+      contImpr.innerHTML = encabezado + '<p style="color:#AAA;font-size:.82rem;padding:.5rem">Sin impresiones registradas este año.</p>';
+    }else{
+      contImpr.innerHTML = encabezado + `
+        <div style="overflow-x:auto">
+          <table class="tbl">
+            <thead><tr>
+              <th>Folio</th><th>Nombre</th>
+              <th style="text-align:right">Veces impresa</th>
+            </tr></thead>
+            <tbody>
+              ${topImpresas.map(f=>`<tr>
+                <td style="font-size:.72rem;color:#AAA">${f.folio||"—"}</td>
+                <td style="font-size:.8rem">${f.nombre}</td>
+                <td style="font-size:.76rem;text-align:right;font-weight:600">${f.veces}</td>
+              </tr>`).join("")}
+            </tbody>
+          </table>
+        </div>`;
+    }
+  }
+}
 // ══ IMPRESIÓN DE COTIZACIÓN ══
 // El documento se genera desde los datos vivos de Firestore, así que puede
 // reimprimirse idéntico desde cualquier dispositivo — "la nube" es la propia
@@ -395,7 +907,10 @@ function cqImprimirCotizacion(id){
   const c = allCotizaciones.find(x=>x.id===id);
   if(!c) return;
   _cqPrintId = id;
-  const total = (c.precio||0) + (c.precioPaquete||0);
+  const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
+  const total = (c.precio||0) + (c.precioPaquete||0) + extras;
+  const desc = Number(c.descuentoMonto)||0;
+  const totalNeto = total - desc;
   const compsHtml = (c.paquete && c.paquete.componentes && c.paquete.componentes.length)
     ? c.paquete.componentes.map(k=>`<tr>
         <td style="border:1px solid #DDD;padding:.35rem .6rem">${k.name}</td>
@@ -429,11 +944,27 @@ function cqImprimirCotizacion(id){
       </tr>
       ${compsHtml}
     </table>
+        ${(c.paquete?.adicionales && c.paquete.adicionales.length)?`
+    <div style="font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:#7A4F2A;margin-bottom:.4rem;margin-top:.6rem">Artículos adicionales</div>
+    <table style="width:100%;border-collapse:collapse;font-size:.8rem;margin-bottom:1rem">
+      <tr>
+        <th style="border:1px solid #DDD;padding:.35rem .6rem;background:#FAFAFA;text-align:left">Artículo</th>
+        <th style="border:1px solid #DDD;padding:.35rem .6rem;background:#FAFAFA;text-align:left">Especificación</th>
+        <th style="border:1px solid #DDD;padding:.35rem .6rem;background:#FAFAFA;text-align:right">Monto</th>
+      </tr>
+      ${c.paquete.adicionales.map(a=>`<tr>
+        <td style="border:1px solid #DDD;padding:.35rem .6rem">${a.nombre}</td>
+        <td style="border:1px solid #DDD;padding:.35rem .6rem;color:#777">${a.nota||"—"}</td>
+        <td style="border:1px solid #DDD;padding:.35rem .6rem;text-align:right">$${Number(a.precio||0).toLocaleString("es-MX")}</td>
+      </tr>`).join("")}
+    </table>`:""}
     <table style="width:100%;border-collapse:collapse;font-size:.85rem;margin-bottom:1rem">
       <tr><td style="padding:.25rem 0">Precio vestido:</td><td style="padding:.25rem 0;text-align:right">$${(c.precio||0).toLocaleString("es-MX")}</td></tr>
       <tr><td style="padding:.25rem 0">Precio paquete:</td><td style="padding:.25rem 0;text-align:right">$${(c.precioPaquete||0).toLocaleString("es-MX")}</td></tr>
+            ${extras>0?`<tr><td style="padding:.25rem 0">Adicionales:</td><td style="padding:.25rem 0;text-align:right">$${extras.toLocaleString("es-MX")}</td></tr>`:""}
       ${c.promocion?`<tr><td style="padding:.25rem 0">Promoción aplicada:</td><td style="padding:.25rem 0;text-align:right">${c.promocion}</td></tr>`:""}
-      <tr><td style="padding:.4rem 0;border-top:1px solid #C9A84C;font-weight:700">Total estimado:</td><td style="padding:.4rem 0;border-top:1px solid #C9A84C;text-align:right;font-weight:700;font-size:1rem">$${total.toLocaleString("es-MX")}</td></tr>
+      ${desc>0?`<tr><td style="padding:.25rem 0;color:#7A4F2A">Descuento (${c.descuentoPct}% ${c.descuentoBase||"ambos"}):</td><td style="padding:.25rem 0;text-align:right;color:#7A4F2A">−$${desc.toLocaleString("es-MX")}</td></tr>`:""}
+      <tr><td style="padding:.4rem 0;border-top:1px solid #C9A84C;font-weight:700">Total estimado:</td><td style="padding:.4rem 0;border-top:1px solid #C9A84C;text-align:right;font-weight:700;font-size:1rem">$${totalNeto.toLocaleString("es-MX")}</td></tr>
     </table>
     ${c.vigencia?`<div style="font-size:.78rem;margin-bottom:.5rem"><strong>Vigencia de esta cotización:</strong> hasta el ${c.vigencia}</div>`:""}
     ${c.fechaEvento?`<div style="font-size:.78rem;margin-bottom:.5rem"><strong>Fecha del evento:</strong> ${c.fechaEvento}</div>`:""}
@@ -540,8 +1071,42 @@ function cqEditarCotizacion(id){
   document.getElementById("cq-fecha-evento").value = cot.fechaEvento||"";
   document.getElementById("cq-vigencia").value = cot.vigencia||"";
   document.getElementById("cq-obs").value = cot.anotaciones||"";
+  // Restaurar vínculo con inventario — tres estados posibles:
+  //   disponible  → artículo existe y tiene stock
+  //   sin-stock   → artículo existe pero cantidad = 0
+  //   eliminado   → el artículo ya no está en el inventario
+  window._cqArticuloActual = cot.articuloId || null;
+  const cqScanMsgEdit = document.getElementById("cq-inv-scan-msg");
+  const cqScanInputEdit = document.getElementById("cq-inv-scan-input");
+  if(cqScanInputEdit) cqScanInputEdit.value = "";
+  if(cqScanMsgEdit){
+    const artEdit = cot.articuloId ? (window._invData||[]).find(a=>a.id===cot.articuloId) : null;
+    const btnQuitar = ' <button type="button" onclick="cqQuitarArticuloEscaneado()" style="background:none;border:none;color:var(--rojo);cursor:pointer;font-size:.68rem;text-decoration:underline;padding:0">✕ Quitar</button>';
+    if(artEdit){
+      const stock = Number(artEdit.cantidad)||0;
+      if(stock > 0){
+        cqScanMsgEdit.style.color = "var(--dorado-d)";
+        cqScanMsgEdit.innerHTML = "✓ "+artEdit.categoria+" · "+artEdit.modelo+" · Talla "+artEdit.talla+" · "+artEdit.colorNombre+btnQuitar;
+      } else {
+        cqScanMsgEdit.style.color = "#B8860B";
+        cqScanMsgEdit.innerHTML = "⚠️ "+artEdit.categoria+" · "+artEdit.modelo+" · Talla "+artEdit.talla+" · "+artEdit.colorNombre+" — sin stock en tienda"+btnQuitar;
+      }
+    } else if(cot.articuloId){
+      cqScanMsgEdit.style.color = "var(--rojo)";
+      cqScanMsgEdit.innerHTML = "✕ Artículo eliminado del inventario"+btnQuitar;
+    } else {
+      cqScanMsgEdit.style.color = "";
+      cqScanMsgEdit.innerHTML = "";
+    }
+  }
+  // Restaurar base de descuento (default "ambos" si es cotización histórica)
+const baseGuardada = cot.descuentoBase || "ambos";
+document.querySelectorAll('input[name="cq-desc-base"]').forEach(r=>{
+  r.checked = (r.value === baseGuardada);
+});
   cqSelPkg((cot.paquete && cot.paquete.tipo) || "xv");
   cqAplicarComponentesGuardados(cot.paquete && cot.paquete.componentes);
+  cqInitAdicionales(cot.paquete && cot.paquete.adicionales);
   cqCalcTotal();
   window._cqEditandoId = id; // se activa DESPUÉS de goSec, que ya reseteó
   const titulo=document.querySelector("#sec-nueva-cotizacion .sec-title"); if(titulo) titulo.textContent="Editar cotización "+cot.folio;

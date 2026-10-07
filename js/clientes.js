@@ -65,6 +65,10 @@ function limpiarFormularioCliente(){
   // Segundo vestido: colapsar y limpiar por completo
   const bloqueV2=document.getElementById("bloque-vestido2");
   if(bloqueV2 && bloqueV2.style.display!=="none") toggleSegundoVestido();
+  // Reset base de descuento a "ambos"
+  document.querySelectorAll('input[name="c-desc-base"]').forEach(r=>{
+    r.checked = (r.value === "ambos");
+  });
   // Mensaje de error limpio
   const msg=document.getElementById("cliente-msg");
   if(msg) msg.textContent="";
@@ -245,6 +249,18 @@ function toggleAdicional(i){
   document.getElementById("ai-"+i).classList.toggle("sel",chk.checked);
   calcTotal();
 }
+function getDescuentoCliente(){
+  const promoRaw = (document.getElementById("c-promocion")?.value||"").trim();
+  const m = promoRaw.match(/(\d+(?:[.,]\d+)?)\s*%?/);
+  const pct = m ? Math.min(100, Math.max(0, parseFloat(m[1].replace(",", ".")))) : 0;
+  const radio = document.querySelector('input[name="c-desc-base"]:checked');
+  const base = radio ? radio.value : "ambos";
+  const vestido = parseFloat(document.getElementById("c-precio")?.value)||0;
+  const paquete = parseFloat(document.getElementById("c-precio-paquete")?.value)||0;
+  const baseMonto = base==="vestido" ? vestido : base==="paquete" ? paquete : vestido + paquete;
+  const monto = Math.round(baseMonto * pct / 100);
+  return { pct, base, monto };
+}
 function calcTotal(){
   const vestido  = parseFloat(document.getElementById("c-precio").value)||0;
   const paquete  = parseFloat(document.getElementById("c-precio-paquete").value)||0;
@@ -257,7 +273,8 @@ function calcTotal(){
       extras+=p;
     }
   });
-  const total  = vestido + paquete + extras;
+  const desc   = getDescuentoCliente();
+  const total  = vestido + paquete + extras - desc.monto;
   const saldo  = total - anticipo;
   document.getElementById("resumen-vestido").textContent  = "$"+vestido.toLocaleString("es-MX");
   document.getElementById("resumen-paquete").textContent  = "$"+paquete.toLocaleString("es-MX");
@@ -265,6 +282,18 @@ function calcTotal(){
   document.getElementById("resumen-total").textContent    = "$"+total.toLocaleString("es-MX");
   document.getElementById("resumen-anticipo").textContent = "$"+anticipo.toLocaleString("es-MX");
   document.getElementById("resumen-saldo").textContent    = "$"+saldo.toLocaleString("es-MX");
+
+  const w = document.getElementById("resumen-descuento-wrap");
+  const e = document.getElementById("resumen-descuento");
+  if(w && e){
+    if(desc.monto > 0 && desc.pct > 0){
+      w.style.display = "flex";
+      e.textContent = "−$"+desc.monto.toLocaleString("es-MX")+" ("+desc.pct+"% "+desc.base+")";
+    } else {
+      w.style.display = "none";
+      e.textContent = "";
+    }
+  }
 }
 
 // ══ GUARDAR CLIENTE ══
@@ -396,6 +425,7 @@ async function saveCliente(){
   if(!elabVal){msg.textContent="La elaboración del vestido es un campo obligatorio.";return;}
   const colorHex=document.getElementById("color-picker").value;
   const colorName=document.getElementById("c-color-name").value.trim()||colorHex;
+  const descInfo = getDescuentoCliente();
   const cliente={
     id:"C"+Date.now(),
     folio:null,
@@ -416,6 +446,10 @@ async function saveCliente(){
     precioPaquete:document.getElementById("c-precio-paquete").value,
     precio:document.getElementById("c-precio").value,
     anticipo:document.getElementById("c-anticipo").value,
+promocion:document.getElementById("c-promocion").value.trim(),
+    descuentoPct:descInfo.pct,
+    descuentoBase:descInfo.base,
+    descuentoMonto:descInfo.monto,
     fechaAnticipo:document.getElementById("c-fecha").value,
     sispago:document.getElementById("c-sispago").value,
     parcialidades:document.getElementById("c-parcialidades").value||30,
@@ -600,6 +634,11 @@ function abrirEditarCliente(id){
   document.getElementById("edit-entrega").value      = c.entrega||"";
   document.getElementById("edit-estatus").value      = c.estatus||"Pedido Realizado";
   document.getElementById("edit-obs").value          = c.observaciones||"";
+    document.getElementById("edit-promocion").value    = c.promocion||"";
+  const baseGuardadaEdit = c.descuentoBase || "ambos";
+  document.querySelectorAll('input[name="edit-desc-base"]').forEach(r=>{
+    r.checked = (r.value === baseGuardadaEdit);
+  });
 
   // Contrato firmado: limpiar selección previa y mostrar el guardado (si existe)
   window._contratoEditBase64 = null;
@@ -762,12 +801,26 @@ function getEditAdicionales(){
   return [...catalogo, ...libres];
 }
 
+function getDescuentoClienteEdit(){
+  const promoRaw = (document.getElementById("edit-promocion")?.value||"").trim();
+  const m = promoRaw.match(/(\d+(?:[.,]\d+)?)\s*%?/);
+  const pct = m ? Math.min(100, Math.max(0, parseFloat(m[1].replace(",", ".")))) : 0;
+  const radio = document.querySelector('input[name="edit-desc-base"]:checked');
+  const base = radio ? radio.value : "ambos";
+  const vestido = parseFloat(document.getElementById("edit-precio")?.value)||0;
+  const paquete = parseFloat(document.getElementById("edit-precio-paquete")?.value)||0;
+  const baseMonto = base==="vestido" ? vestido : base==="paquete" ? paquete : vestido + paquete;
+  const monto = Math.round(baseMonto * pct / 100);
+  return { pct, base, monto };
+}
+
 function calcEditTotal(){
   const vestido  = parseFloat(document.getElementById("edit-precio").value)||0;
   const paquete  = parseFloat(document.getElementById("edit-precio-paquete").value)||0;
   const anticipo = parseFloat(document.getElementById("edit-anticipo").value)||0;
   const extras   = getEditAdicionales().reduce((s,a)=>s+Number(a.precio||0),0);
-  const total    = vestido + paquete + extras;
+  const desc     = getDescuentoClienteEdit();
+  const total    = vestido + paquete + extras - desc.monto;
   const saldo    = total - anticipo;
   const elExtras = document.getElementById("edit-resumen-extras");
   const elTotal  = document.getElementById("edit-resumen-total");
@@ -775,6 +828,18 @@ function calcEditTotal(){
   if(elExtras) elExtras.textContent = "$"+extras.toLocaleString("es-MX");
   if(elTotal)  elTotal.textContent  = "$"+total.toLocaleString("es-MX");
   if(elSaldo)  elSaldo.textContent  = "$"+saldo.toLocaleString("es-MX");
+
+  const w = document.getElementById("edit-resumen-descuento-wrap");
+  const e = document.getElementById("edit-resumen-descuento");
+  if(w && e){
+    if(desc.monto > 0 && desc.pct > 0){
+      w.style.display = "flex";
+      e.textContent = "−$"+desc.monto.toLocaleString("es-MX")+" ("+desc.pct+"% "+desc.base+")";
+    } else {
+      w.style.display = "none";
+      e.textContent = "";
+    }
+  }
 }
 
 function buscarPorQREdicion(){
@@ -913,6 +978,7 @@ async function guardarEdicionCliente(){
 
     const original = allClientes[idx];
     const folioAnterior = original.folio;
+        const descInfoEdit = getDescuentoClienteEdit();
     const hex = document.getElementById("edit-color-picker").value;
 
     let contratoUrl = original.contratoUrl || "";
@@ -972,6 +1038,10 @@ async function guardarEdicionCliente(){
       },
       precio:        document.getElementById("edit-precio").value,
       precioPaquete: document.getElementById("edit-precio-paquete").value,
+            promocion:      document.getElementById("edit-promocion").value.trim(),
+      descuentoPct:   descInfoEdit.pct,
+      descuentoBase:  descInfoEdit.base,
+      descuentoMonto: descInfoEdit.monto,
       anticipo:      document.getElementById("edit-anticipo").value,
       fechaAnticipo: original.fechaAnticipo || original.fecha,
       fpago:         document.getElementById("edit-fpago").value.trim(),
@@ -1212,4 +1282,27 @@ function calcFechaLimite(){
 function toggleParcialidades(){
   const v = document.getElementById("c-sispago").value;
   document.getElementById("fi-parcialidades").style.display = v==="En parcialidades"?"grid":"none";
+}
+// Aplica los componentes del paquete de una cotización al grid de Nuevo cliente.
+// Se llama desde cqConvertirCliente justo después de updatePkg(), que ya dejó
+// el grid con los valores por defecto.
+function aplicarComponentesCotizacionAlCliente(componentes){
+  const lista = componentes || [];
+  // Recorre TODOS los componentes del tipo actual (no solo los que vienen
+  // en la cotización) y aplica checked/opción/especificación según corresponda.
+  // Así, los que el usuario DESMARCÓ en la cotización también quedan
+  // desmarcados en el cliente, en vez de quedarse con el default de updatePkg().
+  const items = currentPkg==="novia" ? PKG_NOVIA : currentPkg==="custom" ? PKG_CUSTOM : PKG_XV;
+  items.forEach(c=>{
+    const chk = document.getElementById("chk-"+c.id);
+    if(!chk) return;
+    const match = lista.find(x=>x.id===c.id);
+    chk.checked = !!match;
+    toggleComp(c.id);
+    const opts = document.querySelectorAll(`#opts-${c.id} .comp-opt`);
+    const opcion = match ? match.opcion : c.default;
+    opts.forEach(b=>b.classList.toggle("sel", b.textContent===opcion));
+    const spec = document.getElementById("spec-"+c.id);
+    if(spec) spec.value = match ? (match.especificacion||"") : "";
+  });
 }

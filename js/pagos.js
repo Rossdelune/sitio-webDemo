@@ -110,7 +110,7 @@ function renderHistorialPagos(){
     const precio = Number(c.precio||0);
     const paquete = Number(c.precioPaquete||0);
     const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-    const total = precio+paquete+extras;
+    const total = totalConDescuentoCliente(c);
     const anticipo = Number(c.anticipo||0);
     const abonos = (c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
     const pagado = anticipo+abonos;
@@ -258,7 +258,7 @@ function abrirAbonoModal(id){
   const precio = Number(c.precio||0);
   const paquete = Number(c.precioPaquete||0);
   const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-  const total = precio+paquete+extras;
+  const total = totalConDescuentoCliente(c);
   const pagado = Number(c.anticipo||0)+(c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
   const interes = c.interes==="si" ? total*0.1 : 0;
   const saldo = total+interes-pagado;
