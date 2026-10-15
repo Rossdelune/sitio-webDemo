@@ -221,82 +221,56 @@ function renderWorkers(){
       <td><span class="${u.role==="admin"?"ba":"br"}">${u.role==="admin"?"Admin":"Colaborador"}</span></td>
       <td><span class="${u.blocked?"bb":"br"}">${u.blocked?"Bloqueado":"Activo"}</span></td>
       <td>
-        <button class="ic-btn" onclick="openWorkerModal('${u.user}')" title="Editar">✏️</button>
         <button class="ic-btn" onclick="toggleBlock('${u.user}')" title="${u.blocked?"Desbloquear":"Bloquear"}">${u.blocked?"🔓":"🔒"}</button>
       </td>
     </tr>`).join("");
 }
-function openWorkerModal(username){
-  editingWorker=username;
+function openWorkerModal(){
   document.getElementById("wm-msg").textContent="";
   document.getElementById("wm-msg").style.color="var(--cafe)";
-  const passField=document.getElementById("w-pass");
-  const passWrap=passField.closest(".field");
-  if(username){
-    const u=allUsers.find(x=>x.user===username);
-    document.getElementById("wm-badge").textContent="Editar cuenta";
-    document.getElementById("wm-title").textContent=u.display;
-    document.getElementById("w-display").value=u.display;
-    document.getElementById("w-user").value=u.user;
-    document.getElementById("w-user").disabled=true;
-    if(passWrap)passWrap.style.display="none";
-  }else{
-    document.getElementById("wm-badge").textContent="Nueva cuenta";
-    document.getElementById("wm-title").textContent="Colaborador";
-    document.getElementById("w-display").value="";document.getElementById("w-user").value="";
-    document.getElementById("w-pass").value="";
-    document.getElementById("w-user").disabled=false;
-    if(passWrap)passWrap.style.display="";
-  }
+  document.getElementById("wm-badge").textContent="Nueva cuenta";
+  document.getElementById("wm-title").textContent="Colaborador";
+  document.getElementById("w-display").value="";
+  document.getElementById("w-user").value="";
+  document.getElementById("w-email").value="";
+  const toggles = document.getElementById("w-permisos-toggles");
+  toggles.innerHTML = SECCIONES_CTRL.map(s=>`
+    <div style="display:flex;justify-content:space-between;align-items:center;padding:.5rem 0;border-bottom:1px solid #F5F0E8">
+      <span style="font-size:.84rem">${s.label}</span>
+      <label class="toggle-switch">
+        <input type="checkbox" id="w-perm-${s.id}" checked>
+        <span class="toggle-slider"></span>
+      </label>
+    </div>`).join("");
   document.getElementById("modal-worker").classList.add("open");
 }
 function closeWorkerModal(){document.getElementById("modal-worker").classList.remove("open");}
 async function saveWorker(){
   const display=document.getElementById("w-display").value.trim();
   const user=document.getElementById("w-user").value.trim().toLowerCase();
-  const pass=document.getElementById("w-pass").value;
+  const email=document.getElementById("w-email").value.trim().toLowerCase();
   const msg=document.getElementById("wm-msg");
-  if(!display||!user){msg.style.color="var(--rojo)";msg.textContent="Nombre y usuario son obligatorios.";return;}
+  msg.style.color="var(--rojo)";
+  msg.textContent="";
+  if(!display||!user||!email){msg.textContent="Nombre, usuario y correo son obligatorios.";return;}
+  if(!email.includes("@")){msg.textContent="El correo no es válido.";return;}
+  const permisos={};
+  SECCIONES_CTRL.forEach(s=>{
+    permisos[s.id] = document.getElementById("w-perm-"+s.id)?.checked === true;
+  });
   try{
-    if(editingWorker){
-      // Solo se actualiza el nombre a mostrar — el usuario (ID del documento) no se
-      // puede cambiar aquí porque está ligado a la cuenta real de Firebase Authentication.
-      await db.collection("users").doc(editingWorker).update({display});
-    }else{
-      if(!pass){msg.style.color="var(--rojo)";msg.textContent="La contraseña es obligatoria.";return;}
-      if(pass.length<6){msg.style.color="var(--rojo)";msg.textContent="Mínimo 6 caracteres.";return;}
-      const snap=await db.collection("users").doc(user).get();
-      if(snap.exists){msg.style.color="var(--rojo)";msg.textContent="Ese usuario ya existe en Firestore.";return;}
-      // Se crea la cuenta real en Firebase Authentication usando la instancia
-      // secundaria — así no se cierra la sesión del admin que está creando el colaborador.
-      let nuevoUid=null;
-      try{
-        const cred = await secondaryApp.auth().createUserWithEmailAndPassword(user+EMAIL_DOMAIN,pass);
-        nuevoUid = cred.user.uid;
-        await secondaryApp.auth().signOut();
-      }catch(authErr){
-        console.error("Error al crear cuenta en Firebase Auth:",authErr);
-        msg.style.color="var(--rojo)";
-        msg.textContent = authErr.code==="auth/email-already-in-use"
-          ? "Ya existe una cuenta de Firebase Authentication con ese usuario."
-          : "No se pudo crear la cuenta: "+authErr.message;
-        return;
-      }
-      // Se guardan DOS documentos con la misma información:
-      //   1) users/{username}   → lo que lee el sistema (rol, permisos, etc.)
-      //   2) usuarios/{uid}     → lo que exigen las reglas de Firestore para
-      //                            permitir leer/escribir (función isTeamMember).
-      // Si solo se escribe el primero, el colaborador puede autenticarse pero
-      // Firestore le rechaza toda lectura → "Missing or insufficient permissions".
-      const datosWorker = {user,display,role:"worker",blocked:false,accesos:[],permisos:{clientes:true,pagos:true,pedidos:true,progreso:true,inventario:true},authUid:nuevoUid};
-      await db.collection("users").doc(user).set(datosWorker);
-      if(nuevoUid){
-        await db.collection("usuarios").doc(nuevoUid).set(datosWorker);
-      }
-    }
-    closeWorkerModal();loadWorkers();
-    toast(editingWorker?"Cuenta actualizada ✓":"Colaborador creado ✓");
-  }catch(e){console.error(e);msg.style.color="var(--rojo)";msg.textContent="Error al guardar.";}
+    await db.collection("pendientes").add({
+      display, user, email, permisos,
+      role: "worker",
+      solicitadoPor: currentUser.user,
+      solicitadoEn: new Date().toISOString()
+    });
+    closeWorkerModal();
+    toast("Solicitud recibida. La cuenta se creará en un plazo menor a 24 horas.");
+  }catch(e){
+    console.error(e);
+    msg.textContent="Error al enviar la solicitud.";
+  }
 }
 async function toggleBlock(username){
   try{

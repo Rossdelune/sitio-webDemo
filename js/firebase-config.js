@@ -46,5 +46,4 @@ let currentUser = null, allUsers = [], allClientes = [];
 let allCuentas = [];
 let allGastos = [];
 let allAccesorios = [];
-let editingWorker = null;
 let selectedColor = "#C8A8D0";
