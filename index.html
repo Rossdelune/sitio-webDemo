@@ -27,7 +27,7 @@
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v62.0 · Colaborador</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v62.1 · colaboradorPermisos</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -925,7 +925,7 @@
       <div class="card">
         <div class="hdr-row">
           <div class="card-title" style="margin:0">Cuentas</div>
-          <button class="btn-new" onclick="openWorkerModal(null)">+ Nueva cuenta</button>
+          <button class="btn-new" onclick="openWorkerModal()">+ Nueva cuenta</button>
         </div>
         <div style="overflow-x:auto;">
           <table class="w-tbl">
@@ -1238,7 +1238,11 @@
     <div class="modal-title" id="wm-title">Colaborador</div>
     <div class="field"><label>Nombre para mostrar</label><input type="text" id="w-display" placeholder="Ej: Ana"></div>
     <div class="field"><label>Usuario</label><input type="text" id="w-user" placeholder="Ej: ana"></div>
-    <div class="field"><label>Contraseña</label><input type="password" id="w-pass" placeholder="••••••••"></div>
+    <div class="field"><label>Correo electrónico</label><input type="email" id="w-email" placeholder="correo@ejemplo.com"></div>
+
+    <div style="font-size:.72rem;letter-spacing:.08em;text-transform:uppercase;color:var(--dorado-d);margin:1rem 0 .5rem">Acceso a secciones</div>
+    <div id="w-permisos-toggles"></div>
+
     <div class="msg-err" id="wm-msg"></div>
     <button class="btn-primary" onclick="saveWorker()">Guardar</button>
   </div>
