@@ -1,12 +1,7 @@
-# 1. Ignorar todo por defecto
-*
-
-# 2. Permitir el propio .gitignore e index.html
-!.gitignore
-!index.html
-
-# 3. Archivos de modulación (CSS y JS)
-!css/
-!css/**
-!js/
-!js/**
+node_modules/
+*.log
+.firebaserc
+firebase.json
+datosPrueba/
+package.json
+package-lock.json

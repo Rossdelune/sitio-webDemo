@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Restablecer contraseña · Ross de Lune</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600&family=Lato:wght@300;400&display=swap" rel="stylesheet">
+<style>
+  body { margin:0; padding:0; min-height:100vh; display:flex; align-items:center; justify-content:center; background:#FDF8F0; font-family:'Lato',sans-serif; color:#3a2a1a; }
+  .card { background:#fff; border-radius:8px; padding:2rem; max-width:420px; width:90%; box-shadow:0 2px 12px rgba(0,0,0,.06); }
+  h1 { font-family:'Cormorant Garamond',serif; font-weight:600; font-size:1.6rem; margin:0 0 .3rem; color:#7A4F2A; text-align:center; }
+  .sub { text-align:center; color:#999; font-size:.82rem; margin-bottom:1.5rem; }
+  label { display:block; font-size:.72rem; letter-spacing:.08em; text-transform:uppercase; color:#7A4F2A; margin:.8rem 0 .3rem; }
+  input { width:100%; box-sizing:border-box; padding:.6rem .8rem; border:1px solid #E8DDD0; border-radius:4px; font-family:'Lato',sans-serif; font-size:.9rem; outline:none; }
+  input:focus { border-color:#C9A96E; }
+  button { width:100%; margin-top:1.2rem; padding:.7rem; background:#C9A96E; color:#fff; border:none; border-radius:4px; font-family:'Lato',sans-serif; font-size:.85rem; letter-spacing:.1em; text-transform:uppercase; cursor:pointer; }
+  button:disabled { opacity:.5; cursor:not-allowed; }
+  .msg { margin-top:1rem; font-size:.82rem; text-align:center; min-height:1.2rem; }
+  .err { color:#c0392b; }
+  .ok { color:#1E8449; }
+  .hidden { display:none; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Ross de Lune</h1>
+  <div class="sub" id="subtitle">Establece tu nueva contraseña</div>
+
+  <div id="form-wrap">
+    <label>Nueva contraseña</label>
+    <input type="password" id="pass1" placeholder="Mínimo 6 caracteres">
+    <label>Confirmar contraseña</label>
+    <input type="password" id="pass2" placeholder="Repite la contraseña">
+    <button id="btn" onclick="cambiar()">Guardar contraseña</button>
+  </div>
+
+  <div class="msg" id="msg"></div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+<script>
+  const firebaseConfig = {
+    apiKey: "AIzaSyCA16iPWtJE_XEGfB6QoBvbn1kpUUCHjFA",
+    authDomain: "rossdelune2026.firebaseapp.com",
+    projectId: "rossdelune2026",
+    storageBucket: "rossdelune2026.firebasestorage.app",
+    messagingSenderId: "396024136594",
+    appId: "1:396024136594:web:05286384348f6fbbe4374b",
+  };
+  firebase.initializeApp(firebaseConfig);
+  const auth = firebase.auth();
+  
+  if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
+    auth.useEmulator("http://localhost:9099");
+  }
+
+  const params = new URLSearchParams(location.search);
+  const oobCode = params.get("oobCode");
+
+  const msg = document.getElementById("msg");
+  const btn = document.getElementById("btn");
+
+  if (!oobCode) {
+    document.getElementById("form-wrap").classList.add("hidden");
+    msg.className = "msg err";
+    msg.textContent = "Enlace inválido. Pide uno nuevo al administrador.";
+  } else {
+    auth.verifyPasswordResetCode(oobCode).then(email => {
+      document.getElementById("subtitle").textContent = "Cuenta: " + email;
+    }).catch(e => {
+      document.getElementById("form-wrap").classList.add("hidden");
+      msg.className = "msg err";
+      msg.textContent = "El enlace expiró o ya se usó. Pide uno nuevo.";
+    });
+  }
+
+  async function cambiar() {
+    const p1 = document.getElementById("pass1").value;
+    const p2 = document.getElementById("pass2").value;
+    msg.className = "msg";
+    msg.textContent = "";
+
+    if (!p1 || p1.length < 6) { msg.className = "msg err"; msg.textContent = "Mínimo 6 caracteres."; return; }
+    if (p1 !== p2) { msg.className = "msg err"; msg.textContent = "Las contraseñas no coinciden."; return; }
+
+    btn.disabled = true;
+    btn.textContent = "Guardando...";
+
+    try {
+      await auth.confirmPasswordReset(oobCode, p1);
+      document.getElementById("form-wrap").classList.add("hidden");
+      msg.className = "msg ok";
+      msg.innerHTML = "✅ Contraseña cambiada.<br><br><a href='index.html' style='color:#7A4F2A'>Ir a iniciar sesión</a>";
+    } catch (e) {
+      msg.className = "msg err";
+      msg.textContent = "Error: " + e.message;
+      btn.disabled = false;
+      btn.textContent = "Guardar contraseña";
+    }
+  }
+</script>
+</body>
+</html>
