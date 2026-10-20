@@ -90,6 +90,7 @@ function enterPanel(){
   document.getElementById("top-user").textContent="@"+currentUser.user;
   if(currentUser.role!=="admin"){
     document.getElementById("admin-sub-colab").style.display="none";
+    document.getElementById("admin-sub-pendientes").style.display="none";
     document.getElementById("admin-sub-permisos").style.display="none";
     document.getElementById("admin-sub-cuentas").style.display="none";
     document.getElementById("admin-sub-hist").style.display="none";
@@ -116,6 +117,7 @@ function enterPanel(){
   } else {
     // Admin: restaurar todo por si la sesión anterior en esta misma pestaña fue de un worker
     document.getElementById("admin-sub-colab").style.display="";
+    document.getElementById("admin-sub-pendientes").style.display="";
     document.getElementById("admin-sub-permisos").style.display="";
     document.getElementById("admin-sub-cuentas").style.display="";
     document.getElementById("admin-sub-hist").style.display="";
@@ -434,4 +436,48 @@ async function verificarAuthSuper(){
     cerrarAuthSuper();
     if(cb) cb();
   }catch(e){console.error("Error de autorización de supervisor:",e);err.textContent="Credenciales incorrectas.";}
+}
+// ══ PENDIENTES (solo admin) ══
+async function loadPendientes(){
+  const tbody = document.getElementById("pendientes-tbody");
+  if(!tbody) return;
+  tbody.innerHTML = '<tr><td colspan="5" style="color:#AAA;padding:1rem"><span class="spinner"></span>Cargando...</td></tr>';
+  try{
+    const snap = await db.collection("pendientes").get();
+    if(snap.empty){
+      tbody.innerHTML = '<tr><td colspan="5" style="color:#AAA;padding:1rem;text-align:center">No hay solicitudes en cola.</td></tr>';
+      return;
+    }
+    const filas = [];
+    snap.forEach(doc => {
+      const d = doc.data();
+      const fecha = d.solicitadoEn ? new Date(d.solicitadoEn).toLocaleString("es-MX") : "—";
+      filas.push(`
+        <tr>
+          <td>${d.display || "—"}</td>
+          <td style="color:#888">@${d.user || "—"}</td>
+          <td style="font-size:.72rem">${d.email || "—"}</td>
+          <td style="font-size:.72rem;color:#888">${d.solicitadoPor || "—"} · ${fecha}</td>
+          <td>
+            <button class="ic-btn" onclick="borrarPendiente('${doc.id}')" title="Eliminar solicitud">🗑️</button>
+          </td>
+        </tr>`);
+    });
+    tbody.innerHTML = filas.join("");
+  }catch(e){
+    console.error("Error cargando pendientes:", e);
+    tbody.innerHTML = '<tr><td colspan="5" style="color:var(--rojo);padding:1rem">Error al cargar solicitudes.</td></tr>';
+  }
+}
+
+async function borrarPendiente(docId){
+  if(!confirm("¿Eliminar esta solicitud? El colaborador no será creado.")) return;
+  try{
+    await db.collection("pendientes").doc(docId).delete();
+    toast("Solicitud eliminada ✓");
+    loadPendientes();
+  }catch(e){
+    console.error("Error al borrar pendiente:", e);
+    toast("Error al eliminar la solicitud", "err");
+  }
 }

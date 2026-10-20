@@ -141,6 +141,7 @@
       <div class="subnav" id="sub-config">
         <button class="sub-item" onclick="goSec('mi-cuenta')" id="admin-sub-micuenta">👤 Mi cuenta</button>
         <button class="sub-item" onclick="goSec('colaboradores')" id="admin-sub-colab">👥 Colaboradores</button>
+        <button class="sub-item" onclick="goSec('pendientes');loadPendientes()" id="admin-sub-pendientes">⏳ Pendientes</button>
         <button class="sub-item" onclick="goSec('permisos')" id="admin-sub-permisos">🔐 Permisos</button>
         <button class="sub-item" onclick="goSec('cuentas-config')" id="admin-sub-cuentas">🏦 Cuentas</button>
         <button class="sub-item" onclick="goSec('historial-accesos')" id="admin-sub-hist">🕐 Historial accesos</button>
@@ -920,6 +921,20 @@
     </div>
 
     <!-- ── COLABORADORES ── -->
+    <div class="section" id="sec-pendientes">
+      <div class="sec-title">Solicitudes Pendientes</div>
+      <p style="color:#AAA;font-size:.78rem;margin:-.4rem 0 .8rem">Colaboradores en cola. El script de GitHub Actions los procesa una vez al día. Puedes eliminar una solicitud antes de que se procese si detectas un error.</p>
+      <div class="card" style="padding:.5rem">
+        <div style="overflow-x:auto">
+          <table class="w-tbl">
+            <thead><tr><th>Nombre</th><th>Usuario</th><th>Correo</th><th>Solicitado por / Fecha</th><th></th></tr></thead>
+            <tbody id="pendientes-tbody">
+              <tr><td colspan="5" style="color:#AAA;padding:1rem;"><span class="spinner"></span>Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
     <div class="section" id="sec-colaboradores">
       <div class="sec-title">Colaboradores</div>
       <div class="card">

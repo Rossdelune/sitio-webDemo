@@ -1,0 +1,51 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isTeamMember() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/usuarios/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return isTeamMember()
+        && get(/databases/$(database)/documents/usuarios/$(request.auth.uid)).data.role == "admin";
+    }
+
+    // ── Pendientes: solo admin lee, solo admin borra, equipo crea validado ──
+    match /pendientes/{docId} {
+      allow read, delete: if isAdmin();
+      allow create: if isTeamMember()
+        && request.resource.data.role == "worker"
+        && request.resource.data.user is string
+        && request.resource.data.user.size() >= 3
+        && request.resource.data.user.size() <= 20
+        && request.resource.data.display is string
+        && request.resource.data.email is string
+        && request.resource.data.email.matches('^[^@]+@[^@]+\\.[^@]+$')
+        && request.resource.data.permisos is map;
+      allow update: if false;
+    }
+
+    match /users/{userId}            { allow read, write: if isTeamMember(); }
+    match /clientes/{clienteId}      { allow read, write: if isTeamMember(); }
+    match /inventario/{articuloId}   { allow read, write: if isTeamMember(); }
+    match /notasSencillas/{docId}    { allow read, write: if isTeamMember(); }
+    match /cuentas/{cuentaId}        { allow read, write: if isTeamMember(); }
+    match /gastos/{gastoId}          { allow read, write: if isTeamMember(); }
+    match /accesorios/{accId}        { allow read, write: if isTeamMember(); }
+    match /waConfig/{docId}          { allow read, write: if isTeamMember(); }
+    match /waMensajes/{docId}        { allow read, write: if isTeamMember(); }
+    match /waBanderas/{docId}        { allow read, write: if isTeamMember(); }
+    match /cotizaciones/{docId}      { allow read, write: if isTeamMember(); }
+
+    match /usuarios/{userId} {
+      allow read: if isTeamMember();
+      allow write: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
