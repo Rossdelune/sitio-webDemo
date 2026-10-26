@@ -9,10 +9,12 @@ function renderPagosPendientes(){
   const hoy = new Date(); hoy.setHours(0,0,0,0);
   let sumaTotal=0, sumaPagado=0, sumaSaldo=0;
   const pendientes = allClientes.filter(c=>c.estatus!=="Entregado" && !c.esNotaSencilla).map(c=>{
-    const precio = Number(c.precio||0);
-    const paquete = Number(c.precioPaquete||0);
-    const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
-    const total = precio+paquete+extras;
+    // Fix A (Bug 1.1): se usa totalConDescuentoCliente(c) como fuente única
+    // de verdad, igual que el Historial, el modal de abono, el contrato, la
+    // nota y el formato de entrega. Antes esta pantalla calculaba el total
+    // a mano (precio + paquete + extras) y no restaba el descuento — por eso
+    // mostraba un saldo distinto al resto del sistema.
+    const total = totalConDescuentoCliente(c);
     const pagado = Number(c.anticipo||0) + (c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
     const saldo = total - pagado;
     const interes = c.interes==="si" ? total*0.1 : 0;
@@ -106,7 +108,12 @@ function limpiarBuscarPendiente(){
 function renderHistorialPagos(){
   const tbody = document.getElementById("tbody-historial-pagos");
   if(!tbody) return;
-  tbody.innerHTML = allClientes.map(c=>{
+  // Fix B (Bug 1.10): se excluyen las notas sencillas (ventas directas) del
+  // Historial de Pagos. Siguen existiendo y operables en Lista de Clientes,
+  // con su marca "Venta directa", y se pueden reimprimir desde ahí. El
+  // Historial es para clientes con contrato, que son los que tienen
+  // seguimiento de pagos y saldo vivo.
+  tbody.innerHTML = allClientes.filter(c=>!c.esNotaSencilla).map(c=>{
     const precio = Number(c.precio||0);
     const paquete = Number(c.precioPaquete||0);
     const extras = (c.paquete?.adicionales||[]).reduce((s,a)=>s+Number(a.precio||0),0);
@@ -248,6 +255,12 @@ function renderCorteCaja(){
 // ══ MODAL ABONO ══
 let abonoClienteId = null;
 let editandoAbonoIndex = null; // null = registrando abono nuevo; número = editando c.pagos[i]
+// Fix C v2 (Bug 1.5): huella del abono que se está editando. Se guarda al
+// abrir la edición y se usa al guardar para encontrar el abono correcto en
+// la lista recargada, sin depender de su posición (que cambia si otro abono
+// fue borrado en otra pestaña). Contiene monto, fecha, metodo y ref del
+// abono original tal como estaba al abrir el modal.
+let editandoAbonoHuella = null;
 function abrirAbonoModal(id){
   const c = allClientes.find(x=>x.id===id);
   if(!c) return;
@@ -325,11 +338,22 @@ function renderHistorialAbonoModal(c){
   }).join("");
 }
 // Precarga el formulario con los datos de un abono existente para editarlo
+
 function iniciarEdicionAbono(i){
   const c = allClientes.find(x=>x.id===abonoClienteId);
   if(!c || !c.pagos || !c.pagos[i]) return;
   const p = c.pagos[i];
   editandoAbonoIndex = i;
+  // Fix C v2: se guarda la huella del abono original (monto, fecha, metodo,
+  // ref) para poder encontrarlo después aunque su posición haya cambiado.
+  // La huella se compara con tolerancia en el monto (por si vino como string
+  // o como número) y tratando null/undefined como cadena vacía.
+  editandoAbonoHuella = {
+    monto: Number(p.monto||0),
+    fecha: String(p.fecha||""),
+    metodo: String(p.metodo||""),
+    ref: String(p.ref||"").trim()
+  };
   document.getElementById("abono-monto").value = p.monto||"";
   document.getElementById("abono-fecha").value = p.fecha||"";
   document.getElementById("abono-metodo").value = p.metodo||"Efectivo";
@@ -356,6 +380,19 @@ function cancelarEdicionAbono(){
 function toggleAbonoProroga(){
   const chk = document.getElementById("abono-proroga").checked;
   document.getElementById("fi-abono-proroga-dias").style.display = chk?"block":"none";
+}
+function actualizarTotalModalAbono(){
+  const c = allClientes.find(x=>x.id===abonoClienteId);
+  if(!c) return;
+  const totalBase = totalConDescuentoCliente(c);
+  const pagado = Number(c.anticipo||0)+(c.pagos||[]).reduce((s,p)=>s+Number(p.monto||0),0);
+  const interesActivo = document.getElementById("abono-interes").value === "si";
+  const interesMonto = interesActivo ? totalBase * 0.10 : 0;
+  const totalFinal = totalBase + interesMonto;
+  const saldo = totalFinal - pagado;
+  
+  document.getElementById("abono-total").textContent = "$"+totalFinal.toLocaleString("es-MX");
+  document.getElementById("abono-saldo").textContent = "$"+saldo.toLocaleString("es-MX");
 }
 function closeAbonoModal(){
   document.getElementById("modal-abono").classList.remove("open");
@@ -391,7 +428,8 @@ function toggleEditCuentaAnticipo(){
 }
 
 async function guardarAbono(){
-  const monto = parseFloat(document.getElementById("abono-monto").value);
+  const montoInput = document.getElementById("abono-monto").value;
+  const monto = parseFloat(montoInput) || 0;
   const fecha = document.getElementById("abono-fecha").value;
   const metodo = document.getElementById("abono-metodo").value;
   const cuentaSeleccionada = document.getElementById("abono-cuenta").value;
@@ -401,60 +439,184 @@ async function guardarAbono(){
   const interes = document.getElementById("abono-interes").value;
   const msg = document.getElementById("abono-msg");
   msg.textContent="";
+  
   const estabaEditando = editandoAbonoIndex !== null;
-  // Antes, esta validación solo corría si estabas EDITANDO un abono existente.
-  // Al registrar uno nuevo con el campo de monto vacío o en 0, no se mostraba
-  // ningún error: el botón simplemente cerraba el modal y mostraba
-  // "Abono registrado ✓" sin haber guardado ningún pago real — por eso parecía
-  // que "no dejaba registrar abonos". Ahora el monto se exige siempre.
-  if(!monto || monto<=0){msg.textContent="Escribe un monto válido para registrar el abono.";return;}
-  if(!fecha){msg.textContent="Selecciona la fecha del abono.";return;}
+  
+  // Fix D (Punto 5): se permite guardar con monto 0 SOLO si se está otorgando prórroga.
+  if(monto <= 0 && !proroga){
+    msg.textContent="Escribe un monto válido para registrar el abono (o marca prórroga si no hay pago).";
+    return;
+  }
+  if(proroga && prorogaDias <= 0){
+    msg.textContent="Escribe los días de prórroga.";
+    return;
+  }
+  if(!fecha){
+    msg.textContent="Selecciona la fecha del abono.";
+    return;
+  }
+
   try{
     allClientes = await loadClientesFS();
-    const cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
     const idx = allClientes.findIndex(x=>x.id===abonoClienteId);
+    if(idx < 0){
+      msg.textContent="No se encontró el cliente. Cierra el modal y vuelve a intentarlo.";
+      return;
+    }
     const c = allClientes[idx];
     if(!c.pagos) c.pagos=[];
-    if(estabaEditando){
-      if(c.pagos[editandoAbonoIndex]){
-        const original = c.pagos[editandoAbonoIndex];
-        c.pagos[editandoAbonoIndex] = {
-          ...original,
-          monto, fecha, metodo, cuentaId, ref,
-          editadoPor: currentUser.user,
-          editadoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
-        };
+
+    // Fix E: Validación de cuenta (solo si hay monto > 0, porque la prórroga sola no lleva dinero)
+    let cuentaId = cuentaIdPorMetodo(metodo, cuentaSeleccionada);
+    if(monto > 0 && !estabaEditando){
+      if(!cuentaId){
+        const seleccion = await mostrarPopupCuentasAbono();
+        if(seleccion === "__cancelar__"){
+          return; // La colaboradora canceló el popup
+        }
+        if(seleccion === "__otro__"){
+          const confirmar = confirm("Este abono quedará sin cuenta asignada. ¿Continuar?");
+          if(!confirmar) return;
+          cuentaId = null;
+        } else {
+          cuentaId = seleccion;
+        }
       }
+    }
+
+    if(estabaEditando){
+      const h = editandoAbonoHuella;
+      if(!h){
+        msg.textContent = "No se pudo identificar el abono que intentas editar. Cierra el modal y vuelve a abrirlo.";
+        return;
+      }
+      const coincidencias = [];
+      (c.pagos||[]).forEach((p, i) => {
+        const huellaActual = {
+          monto: Number(p.monto||0),
+          fecha: String(p.fecha||""),
+          metodo: String(p.metodo||""),
+          ref: String(p.ref||"").trim()
+        };
+        if(
+          huellaActual.monto === h.monto &&
+          huellaActual.fecha === h.fecha &&
+          huellaActual.metodo === h.metodo &&
+          huellaActual.ref === h.ref
+        ){
+          coincidencias.push(i);
+        }
+      });
+
+      if(coincidencias.length === 0){
+        msg.textContent = "No se encontró el abono que intentas editar. Puede que alguien lo haya eliminado o modificado desde otro dispositivo. Cierra el modal y vuelve a abrirlo para refrescar la lista.";
+        return;
+      }
+      if(coincidencias.length > 1){
+        msg.textContent = "Hay más de un abono con los mismos datos. No se puede identificar cuál editar.";
+        return;
+      }
+
+      const idxReal = coincidencias[0];
+      const original = c.pagos[idxReal];
+      c.pagos[idxReal] = {
+        ...original,
+        monto, fecha, metodo, cuentaId, ref,
+        editadoPor: currentUser.user,
+        editadoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
+      };
       editandoAbonoIndex = null;
-    } else if(monto && monto>0){
+      editandoAbonoHuella = null;
+    } else if(monto > 0){
       c.pagos.push({
         monto, fecha, metodo, cuentaId, ref,
         registradoPor: currentUser.user,
         registradoEn: new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"})
       });
     }
-    c.proroga = proroga;
-    c.prorogaDias = prorogaDias;
-    c.interes = interes;
-    if(proroga && prorogaDias>0 && c.fecha){
+
+    // Fix D: manejo de prórroga (se aplica y se desmarca sola)
+    if(proroga && prorogaDias > 0 && c.fecha){
       const d = new Date(c.fecha+"T12:00:00");
       d.setMonth(d.getMonth()+2);
       d.setDate(d.getDate()+prorogaDias);
       c.fechaLimite = d.toISOString().split("T")[0];
-    } else if(!proroga && c.fecha){
+      c.proroga = true;
+      c.prorogaDias = prorogaDias;
+      // Se limpian las banderas de WhatsApp porque cambió la fecha límite
+      await waBorrarBanderasHitosCliente(abonoClienteId);
+    }
+    // El checkbox visual se apaga para que no se re-aplique en el siguiente guardado
+    document.getElementById("abono-proroga").checked = false;
+
+    // Fix D: el interés solo se guarda si la colaboradora lo cambió respecto al valor original
+    if(interes !== (c.interes||"no")){
+      c.interes = interes;
+      c.editadoPor = currentUser.user;
+      c.editadoEn = new Date().toLocaleString("es-MX",{timeZone:"America/Mexico_City"});
+    }
+
+    // Fix D: la fecha límite ya NO se recalcula sola en cada abono si no hay prórroga.
+    // Si el cliente no tiene fecha límite (cliente nuevo), se calcula una vez.
+    if(!c.fechaLimite && c.fecha){
       const d = new Date(c.fecha+"T12:00:00");
       d.setMonth(d.getMonth()+2);
       c.fechaLimite = d.toISOString().split("T")[0];
     }
+
     await saveUnCliente(c);
-    // Si esta vez se otorgó prórroga, se limpian las banderas de hitos para que
-    // la clienta vuelva a la ventana normal de avisos con su nueva fecha límite.
-    if(proroga) await waBorrarBanderasHitosCliente(abonoClienteId);
+    
     closeAbonoModal();
     renderPagosPendientes();
     renderHistorialPagos();
-    toast(estabaEditando ? "Abono actualizado ✓" : "Abono registrado ✓");
-  } catch(e){console.error(e);msg.textContent="Error al guardar.";}
+    
+    if(estabaEditando){
+      toast("Abono actualizado ✓");
+    } else if (proroga && monto <= 0){
+      toast("Prórroga otorgada ✓");
+    } else {
+      toast("Abono registrado ✓");
+    }
+  } catch(e){
+    console.error(e);
+    msg.textContent="Error al guardar.";
+  }
+}
+
+// Fix E: Popup para asignar cuenta. Devuelve el ID de la cuenta, "__otro__" o "__cancelar__"
+function mostrarPopupCuentasAbono(){
+  return new Promise((resolve) => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText = "position:fixed;inset:0;background:rgba(30,18,8,.6);backdrop-filter:blur(5px);z-index:9999;display:flex;align-items:center;justify-content:center;padding:1rem";
+    
+    const cuentasActivas = (allCuentas||[]).filter(c=>c.activa);
+    const botonesCuentas = cuentasActivas.map(c => 
+      `<button class="btn-sec" style="width:100%;margin-bottom:.5rem;justify-content:flex-start" onclick="window._resolverPopupCuenta('${c.id}')">${c.nombre} (${c.tipo})</button>`
+    ).join("");
+
+    const modal = document.createElement("div");
+    modal.style.cssText = "background:#FFF;border-radius:6px;padding:1.5rem;max-width:400px;width:100%;box-shadow:0 20px 60px rgba(30,18,8,.3);font-family:'Lato',sans-serif";
+    modal.innerHTML = `
+      <div style="font-size:.68rem;letter-spacing:.2em;text-transform:uppercase;color:#7A4F2A;margin-bottom:.6rem">Asignar Cuenta</div>
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.3rem;color:#3A2A1A;margin-bottom:1rem">¿A qué cuenta entró este dinero?</div>
+      <div style="font-size:.78rem;color:#666;margin-bottom:1rem">No se pudo asignar automáticamente. Elige una cuenta para que el saldo se registre correctamente, o elige "Otro" para dejarlo sin asignar.</div>
+      <div style="margin-bottom:1rem">
+        ${botonesCuentas}
+        <button class="btn-sec" style="width:100%;justify-content:flex-start;color:#B5442E;border-color:#B5442E" onclick="window._resolverPopupCuenta('__otro__')">Otro / Sin asignar</button>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn-sec" onclick="window._resolverPopupCuenta('__cancelar__')">Cancelar</button>
+      </div>
+    `;
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+
+    window._resolverPopupCuenta = (valor) => {
+      overlay.remove();
+      delete window._resolverPopupCuenta;
+      resolve(valor);
+    };
+  });
 }
 
 // Elimina un abono específico del historial de un cliente (no toca el anticipo)

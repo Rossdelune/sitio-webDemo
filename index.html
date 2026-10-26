@@ -27,7 +27,7 @@
     <button type="button" class="btn-access btn-worker" onclick="openLogin('worker')">✦ &nbsp;Acceso Colaborador</button>
   </div>
 </div>
-<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · Demo v62.1 · colaboradorPermisos</p>
+<p class="footer-tag">Ross de Lune · Novias y Quinceañeras · LabModular v69.4 · fix abono interes moratorio</p>
 
 <!-- ══ LOGIN ══ -->
 <div class="overlay" id="ov-login">
@@ -1380,7 +1380,7 @@
       </div>
       <div class="field" style="margin-bottom:0">
         <label>Interés moratorio</label>
-        <select id="abono-interes">
+        <select id="abono-interes" onchange="actualizarTotalModalAbono()">
           <option value="no">No aplica</option>
           <option value="si">10% sobre el total</option>
         </select>

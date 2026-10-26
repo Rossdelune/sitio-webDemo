@@ -4,10 +4,18 @@ function limpiarFormularioCliente(){
   // descarta — así nunca se marca por error una cotización vieja.
   window._cqConvirtiendoId = null;
   // Campos de texto, número, fecha, textarea
+
+  // Fix A.1 (descuento residual en Nuevo Cliente):
+  // "c-promocion" no estaba en esta lista, así que al abrir Nuevo Cliente
+  // después de editar otro cliente (o de convertir una cotización), el campo
+  // de promoción conservaba el valor anterior. En cuanto se escribía un
+  // precio (o se escaneaba un artículo), calcTotal() leía ese valor y
+  // "aplicaba" un descuento que nadie había pedido. Ahora se limpia junto
+  // con el resto de los campos del formulario.
   const ids=["c-nombre","c-cel","c-correo","c-tel","c-domicilio","c-tipo","c-marca",
     "c-modelo","c-talla","c-color-name","c-elab","c-sispago","m-busto","m-cintura",
     "m-cadera","m-copa","m-largo","c-precio-paquete","c-fecha","c-fecha-limite",
-    "c-entrega","c-parcialidades","c-precio","c-anticipo",
+    "c-entrega","c-parcialidades","c-precio","c-anticipo","c-promocion",
     "c-fpago","c-obs"];
   ids.forEach(id=>{
     const el=document.getElementById(id);
