@@ -536,16 +536,19 @@ async function guardarAbono(){
     }
 
     // Fix D: manejo de prórroga (se aplica y se desmarca sola)
-    if(proroga && prorogaDias > 0 && c.fecha){
-      const d = new Date(c.fecha+"T12:00:00");
-      d.setMonth(d.getMonth()+2);
-      d.setDate(d.getDate()+prorogaDias);
-      c.fechaLimite = d.toISOString().split("T")[0];
-      c.proroga = true;
-      c.prorogaDias = prorogaDias;
-      // Se limpian las banderas de WhatsApp porque cambió la fecha límite
-      await waBorrarBanderasHitosCliente(abonoClienteId);
-    }
+    
+   if(proroga && prorogaDias > 0 && c.fecha){
+     const d = new Date(c.fecha+"T12:00:00");
+     d.setMonth(d.getMonth()+2);
+     d.setDate(d.getDate()+prorogaDias);
+     c.fechaLimite = d.toISOString().split("T")[0];
+     
+     // Se aplica la fecha, pero el check se apaga inmediatamente
+     c.proroga = false; 
+     c.prorogaDias = 0;
+     
+     await waBorrarBanderasHitosCliente(abonoClienteId);
+   }
     // El checkbox visual se apaga para que no se re-aplique en el siguiente guardado
     document.getElementById("abono-proroga").checked = false;
 
